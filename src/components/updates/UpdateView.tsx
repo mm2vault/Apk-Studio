@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Download, ExternalLink, RefreshCw, ShieldCheck, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react';
 
-const CURRENT_VERSION = '0.1.0';
+const CURRENT_VERSION = import.meta.env.VITE_APP_VERSION || '0.1.0';
 const RELEASES_API = 'https://api.github.com/repos/mm2vault/Apk-Studio/releases/latest';
 
 interface GitHubRelease {
