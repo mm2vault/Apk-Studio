@@ -49,31 +49,53 @@ export const ExportView: React.FC<ExportViewProps> = ({ project }) => {
   };
 
   const handleDownloadWorkflowYaml = () => {
-    const yaml = `name: Build Android APK
+    const yaml = `name: APK Studio - Build Android APK
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
-
+    inputs:
+      project_path:
+        description: "Android Gradle project folder (use . for repository root)"
+        required: true
+        default: "."
+        type: string
+      build_variant:
+        description: "APK build variant"
+        required: true
+        default: "debug"
+        type: choice
+        options: [debug, release]
+permissions:
+  contents: read
 jobs:
   build:
-    name: Build Release APK
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: gradle
-      - name: Build with Gradle
-        run: ./gradlew assembleRelease --stacktrace
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v6
         with:
-          name: ${project.name.replace(/\s+/g, '_')}-apk
-          path: app/build/outputs/apk/**/*.apk
+          gradle-version: "8.2.1"
+      - name: Create wrapper when missing
+        working-directory: \${{ inputs.project_path }}
+        run: |
+          test -f settings.gradle -o -f settings.gradle.kts
+          if [ ! -f gradlew ]; then gradle wrapper --gradle-version 8.2.1 --distribution-type bin; fi
+          chmod +x gradlew
+      - name: Build APK
+        working-directory: \${{ inputs.project_path }}
+        env:
+          BUILD_VARIANT: \${{ inputs.build_variant }}
+        run: ./gradlew "assemble\${BUILD_VARIANT^}" --stacktrace --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${project.name.replace(/[^a-zA-Z0-9_-]/g, '_')}-apk
+          path: \${{ inputs.project_path }}/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 14
 `;
     const blob = new Blob([yaml], { type: 'text/yaml' });
     triggerDownload(blob, 'build-apk.yml');
@@ -225,7 +247,7 @@ jobs:
               <span>Yöntem B: GitHub Actions ile Ücretsiz Bulutta Derleme</span>
             </div>
             <p className="text-slate-400 text-[11px] leading-relaxed">
-              İndirdiğiniz projenin içinde hazır <code className="text-purple-300">.github/workflows/build-apk.yml</code> dosyası bulunmaktadır. Projenizi GitHub'a yüklediğinizde, GitHub sunucuları APK'nızı otomatik olarak derler ve <strong>Actions &gt; Artifacts</strong> sekmesinde indirilebilir duruma getirir.
+              İndirdiğiniz projenin içindeki <code className="text-purple-300">.github/workflows/build-apk.yml</code> dosyasını GitHub deponuza yükleyin. Actions sekmesinden iş akışını seçin, proje klasörünü ve Debug/Release türünü belirleyip <strong>Run workflow</strong> düğmesine basın. APK tamamlandığında çalışmanın Artifacts bölümünden indirilir.
             </p>
           </div>
         </div>
