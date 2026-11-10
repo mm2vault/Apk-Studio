@@ -339,41 +339,53 @@ public class MainActivity extends AppCompatActivity {
     }
   }
 
-  // 9. GitHub Actions Workflow (.github/workflows/build-apk.yml)
-  zip.file('.github/workflows/build-apk.yml', `name: APK Studio Mobile - Android APK Derleme
+  // 9. GitHub Actions workflow (manual dispatch; performs a real Gradle build)
+  zip.file('.github/workflows/build-apk.yml', `name: APK Studio - Build Android APK
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
-
+    inputs:
+      project_path:
+        description: "Android Gradle project folder (use . for repository root)"
+        required: true
+        default: "."
+        type: string
+      build_variant:
+        description: "APK build variant"
+        required: true
+        default: "debug"
+        type: choice
+        options: [debug, release]
+permissions:
+  contents: read
 jobs:
   build:
-    name: Gradle Assemble APK
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - name: Kodu Getir
-        uses: actions/checkout@v4
-
-      - name: OpenJDK 17 Kurulumu
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Gradle Wrapper Yetkilendir
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.2.1"
+      - name: Validate Gradle project
+        working-directory: \${{ inputs.project_path }}
         run: |
-          gradle wrapper
+          test -f settings.gradle -o -f settings.gradle.kts
+          if [ ! -f gradlew ]; then gradle wrapper --gradle-version 8.2.1 --distribution-type bin; fi
           chmod +x gradlew
-
-      - name: APK Derle (Release / Debug)
-        run: ./gradlew assembleDebug --stacktrace
-
-      - name: APK Dosyasını Yükle (Artifact)
-        uses: actions/upload-artifact@v4
+      - name: Build APK
+        working-directory: \${{ inputs.project_path }}
+        env:
+          BUILD_VARIANT: \${{ inputs.build_variant }}
+        run: ./gradlew "assemble\${BUILD_VARIANT^}" --stacktrace --no-daemon
+      - uses: actions/upload-artifact@v4
         with:
           name: ${project.name.replace(/[^a-zA-Z0-9_-]/g, '_')}-apk
-          path: app/build/outputs/apk/**/*.apk
+          path: \${{ inputs.project_path }}/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
           retention-days: 14
 `);
 
