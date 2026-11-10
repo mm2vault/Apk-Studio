@@ -17,6 +17,7 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
   const [toolchain, setToolchain] = useState<ToolchainStatus | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [projectPath, setProjectPath] = useState('.');
+  const [buildVariant, setBuildVariant] = useState<'debug' | 'release'>('debug');
   const [apiKey, setApiKey] = useState('');
   const [loadingCheck, setLoadingCheck] = useState(true);
   const [localBuilding, setLocalBuilding] = useState(false);
@@ -62,7 +63,7 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
     setCloudBuilding(true);
     setMessage(null);
     try {
-      const result = await BuildApiService.triggerCloudBuild(project, projectPath, apiKey);
+      const result = await BuildApiService.triggerCloudBuild(project, projectPath, apiKey, buildVariant);
       setMessage(result.success
         ? { kind: 'success', text: result.message, url: result.workflowUrl }
         : { kind: 'error', text: result.message });
@@ -148,6 +149,10 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
           </div>
           <label className="block text-[11px] text-slate-300" htmlFor="apk-project-path">GitHub deposundaki Android proje klasörü</label>
           <input id="apk-project-path" value={projectPath} onChange={e => setProjectPath(e.target.value)} placeholder="." className="w-full bg-[#0b0d14] border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-purple-500" />
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => setBuildVariant('debug')} className={`rounded-lg py-2 text-xs font-semibold border ${buildVariant === 'debug' ? 'bg-purple-600/20 border-purple-400 text-purple-200' : 'bg-white/5 border-white/10 text-slate-400'}`}>Debug APK</button>
+            <button type="button" onClick={() => setBuildVariant('release')} className={`rounded-lg py-2 text-xs font-semibold border ${buildVariant === 'release' ? 'bg-purple-600/20 border-purple-400 text-purple-200' : 'bg-white/5 border-white/10 text-slate-400'}`}>Release APK</button>
+          </div>
           <div className="rounded-xl bg-black/30 border border-white/5 p-3 space-y-2">
             <p className="text-[11px] text-slate-300">Önce <button onClick={() => setActiveTab('export')} className="text-cyan-300 underline">Android Gradle ZIP</button> dosyasını indirip GitHub deponuza yükleyin.</p>
             <p className="text-[10px] text-slate-500 leading-relaxed">Ardından sunucuya GITHUB_REPOSITORY, GITHUB_TOKEN ve GITHUB_BUILD_REF ortam değişkenlerini ekleyin. Token için Actions: write izni gerekir; token tarayıcıya gönderilmez.</p>
