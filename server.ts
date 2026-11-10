@@ -340,7 +340,7 @@ jobs:
   // API 4: Real local Gradle build. Disabled by default; enable only on a trusted loopback host.
   app.post('/api/build/local', async (req, res) => {
     const isLoopback = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress || '');
-    const requestHost = (req.get('host') || '').split(':')[0].replace(/^\\[|\\]$/g, '');
+    const requestHost = (req.get('host') || '').split(':')[0].replace(/^\[|\]$/g, '');
     const origin = req.get('origin');
     let originIsLoopback = true;
     if (origin) {
@@ -382,7 +382,7 @@ jobs:
       const entries = Object.values(archive.files);
       for (const entry of entries) {
         if (entry.dir) continue;
-        const normalized = entry.name.replace(/\\\\/g, '/');
+        const normalized = entry.name.replace(/\\/g, '/');
         if (normalized.startsWith('/') || normalized.split('/').some((part: string) => part === '..')) {
           throw new Error(`Güvenli olmayan ZIP yolu: ${entry.name}`);
         }
@@ -443,7 +443,7 @@ jobs:
     const projectPath = typeof req.body?.projectPath === 'string' ? req.body.projectPath.trim() : '.';
     const buildVariant = req.body?.buildVariant === 'release' ? 'release' : 'debug';
 
-    if (!/^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$/.test(repository) || !token) {
+    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) || !token) {
       return res.status(503).json({
         success: false,
         message: 'Cloud Build yapılandırılmamış. Sunucu ortamına GITHUB_REPOSITORY (owner/repo) ve GITHUB_TOKEN ekleyin.'
