@@ -415,7 +415,7 @@ public class MainActivity extends AppCompatActivity {
     || project.files.find(f => /\.html?$/i.test(f.path));
   const webEntryPath = (htmlEntry?.path || 'index.html')
     .replace(/\\/g, '/')
-    .replace(/^\\/+/, '')
+    .replace(/^\/+/, '')
     .split('/')
     .filter(part => part && part !== '.' && part !== '..')
     .join('/');
