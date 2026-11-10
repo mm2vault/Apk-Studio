@@ -1,6 +1,8 @@
 name: APK Studio - Build Android APK
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       build_variant:
