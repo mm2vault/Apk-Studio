@@ -121,14 +121,14 @@ export const BuildApiService = {
     }
   },
 
-  async triggerCloudBuild(project: Project, projectPath = '.', apiKey = ''): Promise<any> {
+  async triggerCloudBuild(project: Project, projectPath = '.', apiKey = '', buildVariant: 'debug' | 'release' = 'debug'): Promise<any> {
     try {
       const response = await fetch('/api/build/cloud/trigger', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-APK-Studio-Key': apiKey },
         body: JSON.stringify({
           projectPath,
-          buildVariant: 'debug',
+          buildVariant,
           projectConfig: project.config
         })
       });
