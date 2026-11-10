@@ -1,5 +1,5 @@
 name: APK Studio CI
-# CI checks the current build branch, including the latest APK validation changes.
+# CI checks TypeScript and the production Vite bundle for the current branch.
 
 on:
   push:
