@@ -182,6 +182,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
       onUpdateProject({
         ...project,
         files: updatedFiles,
+        type: detectProjectType(updatedFiles).type,
         updatedAt: Date.now()
       });
     } catch (err: any) {
@@ -296,6 +297,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
     onUpdateProject({
       ...project,
       files: updated,
+      type: detectProjectType(updated).type,
       updatedAt: Date.now()
     });
 
