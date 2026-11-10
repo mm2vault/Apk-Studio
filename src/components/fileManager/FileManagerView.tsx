@@ -150,6 +150,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
       onUpdateProject({
         ...project,
         files: updatedFiles,
+        type: detectProjectType(updatedFiles).type,
         updatedAt: Date.now()
       });
     } catch (err: any) {
@@ -202,9 +203,11 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
       const existingPaths = new Set(extracted.map(f => f.path));
       const remaining = project.files.filter(f => !existingPaths.has(f.path));
 
+      const updatedFiles = [...remaining, ...extracted];
       onUpdateProject({
         ...project,
-        files: [...remaining, ...extracted],
+        files: updatedFiles,
+        type: detectProjectType(updatedFiles).type,
         updatedAt: Date.now()
       });
     } catch (err: any) {
@@ -237,9 +240,11 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
       lastModified: Date.now()
     };
 
+    const updatedFiles = [...project.files, newFile];
     onUpdateProject({
       ...project,
-      files: [...project.files, newFile],
+      files: updatedFiles,
+      type: detectProjectType(updatedFiles).type,
       updatedAt: Date.now()
     });
 
@@ -258,6 +263,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
     onUpdateProject({
       ...project,
       files: updated,
+      type: detectProjectType(updated).type,
       updatedAt: Date.now()
     });
 
