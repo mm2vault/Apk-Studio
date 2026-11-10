@@ -163,7 +163,7 @@ export async function generateFullAndroidGradleProjectZip(project: Project): Pro
   // Native Android imports must keep their original Gradle structure; do not wrap them in WebView assets.
   if (project.type === 'native-android') {
     for (const file of project.files) {
-      const safePath = file.path.replace(/\\\\/g, '/').replace(/^\\/+/, '');
+      const safePath = file.path.replace(/\\/g, '/').replace(/^\/+/, '');
       if (!safePath || safePath.split('/').some(part => part === '..')) {
         throw new Error(`Geçersiz Android proje dosya yolu: ${file.path}`);
       }
@@ -230,7 +230,7 @@ jobs:
         run: ./gradlew "assemble\${BUILD_VARIANT^}" --stacktrace --no-daemon
       - uses: actions/upload-artifact@v4
         with:
-          name: apk-studio-${{ inputs.build_variant }}
+          name: apk-studio-\${{ inputs.build_variant }}
           path: \${{ inputs.project_path }}/app/build/outputs/apk/**/*.apk
           if-no-files-found: error
           retention-days: 14
@@ -412,17 +412,17 @@ public class MainActivity extends AppCompatActivity {
 
   // 8. Place web/project files inside app/src/main/assets/
   const htmlEntry = project.files.find(f => f.path.toLowerCase() === 'index.html')
-    || project.files.find(f => /\\.html?$/i.test(f.path));
+    || project.files.find(f => /\.html?$/i.test(f.path));
   const webEntryPath = (htmlEntry?.path || 'index.html')
-    .replace(/\\\\/g, '/')
+    .replace(/\\/g, '/')
     .replace(/^\\/+/, '')
     .split('/')
     .filter(part => part && part !== '.' && part !== '..')
     .join('/');
-  const escapedWebEntryPath = webEntryPath.replace(/\\\\/g, '\\\\').replace(/"/g, '\\"');
+  const escapedWebEntryPath = webEntryPath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
   for (const file of project.files) {
-    const safeAssetPath = file.path.replace(/\\\\/g, '/').replace(/^\\/+/, '');
+    const safeAssetPath = file.path.replace(/\\/g, '/').replace(/^\/+/, '');
     if (!safeAssetPath || safeAssetPath.split('/').some(part => part === '..')) {
       throw new Error(`Geçersiz web proje dosya yolu: ${file.path}`);
     }
