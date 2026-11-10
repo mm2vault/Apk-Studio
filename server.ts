@@ -18,8 +18,8 @@ async function startServer() {
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   const isProduction = process.env.NODE_ENV === 'production';
 
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+  app.use(express.json({ limit: '75mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // API 1: System environment & Android SDK check
   app.get('/api/system/check', (_req, res) => {
@@ -341,7 +341,7 @@ jobs:
     }
 
     const androidHome = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
-    if (!androidHome || !fs) {
+    if (!androidHome) {
       return res.status(503).json({
         success: false,
         errorType: 'MISSING_ANDROID_SDK',
@@ -474,7 +474,7 @@ jobs:
 
   const host = process.env.APK_STUDIO_ENABLE_LOCAL_BUILD === 'true' ? '127.0.0.1' : '0.0.0.0';
   app.listen(port, host, () => {
-    console.log(`[APK Studio Mobile] Server running at http://0.0.0.0:${port}`);
+    console.log(`[APK Studio Mobile] Server running at http://${host}:${port}`);
   });
 }
 
