@@ -15,7 +15,7 @@ on:
           - release
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: apk-studio-android-build-${{ github.ref }}-${{ inputs.build_variant || 'debug' }}
@@ -61,10 +61,17 @@ jobs:
           chmod +x ./gradlew
           ./gradlew "assemble${BUILD_VARIANT^}" --stacktrace --no-daemon
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-studio-${{ inputs.build_variant || 'debug' }}-${{ github.run_number }}
-          path: android/app/build/outputs/apk/**/*.apk
-          if-no-files-found: error
-          retention-days: 14
+      - name: Publish direct APK download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_VARIANT: ${{ inputs.build_variant || 'debug' }}
+        run: |
+          APK_PATH="$(find android/app/build/outputs/apk -type f -name '*.apk' | head -n 1)"
+          if [ -z "$APK_PATH" ]; then
+            echo "APK file was not produced."
+            exit 1
+          fi
+          gh release create "apk-build-${GITHUB_RUN_NUMBER}" "$APK_PATH" \
+            --title "APK Studio ${BUILD_VARIANT} build ${GITHUB_RUN_NUMBER}" \
+            --notes "Automatically generated APK Studio Android build." \
+            --prerelease
