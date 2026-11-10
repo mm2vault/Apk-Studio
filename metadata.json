@@ -1,0 +1,6 @@
+{
+  "name": "APK Studio Mobile",
+  "description": "Mobil öncelikli profesyonel Android APK hazırlama, dosya düzenleme, proje yönetimi ve derleme mimarisi stüdyosu.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
