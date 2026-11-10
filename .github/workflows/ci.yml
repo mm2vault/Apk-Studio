@@ -1,5 +1,5 @@
 name: APK Studio CI
-# Keep dependency installation strict; dependency ranges are kept peer-compatible.
+# CI checks the current build branch, including the latest APK validation changes.
 
 on:
   push:
