@@ -18,12 +18,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: apk-studio-android-build-${{ github.ref }}-${{ inputs.build_variant }}
+  group: apk-studio-android-build-${{ github.ref }}-${{ inputs.build_variant || 'debug' }}
   cancel-in-progress: false
 
 jobs:
   build:
-    name: Build ${{ inputs.build_variant }} APK
+    name: Build ${{ inputs.build_variant || 'debug' }} APK
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -56,7 +56,7 @@ jobs:
       - name: Build APK
         working-directory: android
         env:
-          BUILD_VARIANT: ${{ inputs.build_variant }}
+          BUILD_VARIANT: ${{ inputs.build_variant || 'debug' }}
         run: |
           chmod +x ./gradlew
           ./gradlew "assemble${BUILD_VARIANT^}" --stacktrace --no-daemon
@@ -64,7 +64,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: apk-studio-${{ inputs.build_variant }}-${{ github.run_number }}
+          name: apk-studio-${{ inputs.build_variant || 'debug' }}-${{ github.run_number }}
           path: android/app/build/outputs/apk/**/*.apk
           if-no-files-found: error
           retention-days: 14
