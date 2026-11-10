@@ -17,6 +17,7 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
   const [toolchain, setToolchain] = useState<ToolchainStatus | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [projectPath, setProjectPath] = useState('.');
+  const [apiKey, setApiKey] = useState('');
   const [loadingCheck, setLoadingCheck] = useState(true);
   const [localBuilding, setLocalBuilding] = useState(false);
   const [cloudBuilding, setCloudBuilding] = useState(false);
@@ -44,7 +45,7 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
     setLocalBuilding(true);
     setMessage(null);
     try {
-      const result = await BuildApiService.requestLocalBuild(project);
+      const result = await BuildApiService.requestLocalBuild(project, apiKey);
       if (result.success && result.apk) {
         const safeName = project.config.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
         triggerDownload(result.apk, `${safeName || 'app'}-debug.apk`);
@@ -61,7 +62,7 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
     setCloudBuilding(true);
     setMessage(null);
     try {
-      const result = await BuildApiService.triggerCloudBuild(project, projectPath);
+      const result = await BuildApiService.triggerCloudBuild(project, projectPath, apiKey);
       setMessage(result.success
         ? { kind: 'success', text: result.message, url: result.workflowUrl }
         : { kind: 'error', text: result.message });
@@ -108,6 +109,12 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
         </div>
       )}
 
+      <section className="glass-panel rounded-2xl border border-white/10 p-4 space-y-2">
+        <label htmlFor="apk-build-api-key" className="text-xs font-semibold text-slate-200">Build API anahtarı</label>
+        <input id="apk-build-api-key" type="password" autoComplete="off" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Sunucudaki APK_STUDIO_BUILD_API_KEY değeri" className="w-full bg-[#0b0d14] border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-purple-500" />
+        <p className="text-[10px] text-slate-500">Bu anahtar yalnızca bu oturumda tutulur. GitHub erişim token'ı değildir; GitHub token sunucuda ayrı saklanır.</p>
+      </section>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <section className="glass-panel rounded-2xl border border-white/10 p-4 space-y-3">
           <div className="flex items-center gap-2">
@@ -125,7 +132,7 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
           <p className="text-[11px] text-slate-400 leading-relaxed">
             Güvenlik için yerel derleme varsayılan olarak kapalıdır. Sunucuyu yalnızca localhost üzerinde çalıştırıp APK_STUDIO_ENABLE_LOCAL_BUILD=true ayarını açmalısınız.
           </p>
-          <button onClick={handleLocalBuild} disabled={localBuilding || !toolchain?.readyForLocalBuild} className="w-full flex items-center justify-center gap-2 rounded-xl py-3 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold">
+          <button onClick={handleLocalBuild} disabled={localBuilding || !apiKey.trim() || !toolchain?.readyForLocalBuild} className="w-full flex items-center justify-center gap-2 rounded-xl py-3 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold">
             {localBuilding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Hammer className="w-4 h-4" />}
             {localBuilding ? 'APK derleniyor…' : 'Yerel APK Oluştur'}
           </button>
@@ -145,7 +152,7 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
             <p className="text-[11px] text-slate-300">Önce <button onClick={() => setActiveTab('export')} className="text-cyan-300 underline">Android Gradle ZIP</button> dosyasını indirip GitHub deponuza yükleyin.</p>
             <p className="text-[10px] text-slate-500 leading-relaxed">Ardından sunucuya GITHUB_REPOSITORY, GITHUB_TOKEN ve GITHUB_BUILD_REF ortam değişkenlerini ekleyin. Token için Actions: write izni gerekir; token tarayıcıya gönderilmez.</p>
           </div>
-          <button onClick={handleCloudBuild} disabled={cloudBuilding || !validation?.valid || !projectPath.trim()} className="w-full flex items-center justify-center gap-2 rounded-xl py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold">
+          <button onClick={handleCloudBuild} disabled={cloudBuilding || !apiKey.trim() || !validation?.valid || !projectPath.trim()} className="w-full flex items-center justify-center gap-2 rounded-xl py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold">
             {cloudBuilding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
             {cloudBuilding ? 'GitHub Actions başlatılıyor…' : 'Cloud APK Oluştur'}
           </button>
