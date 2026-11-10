@@ -6,9 +6,19 @@ import { promisify } from 'util';
 import { promises as fs } from 'fs';
 import os from 'os';
 import JSZip from 'jszip';
+import { timingSafeEqual } from 'crypto';
 import { fileURLToPath } from 'url';
 
 const execFileAsync = promisify(execFile);
+
+function isAuthorizedBuildRequest(req: express.Request): boolean {
+  const expected = process.env.APK_STUDIO_BUILD_API_KEY || '';
+  const provided = req.get('x-apk-studio-key') || '';
+  if (!expected || !provided) return false;
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+  return expectedBuffer.length === providedBuffer.length && timingSafeEqual(expectedBuffer, providedBuffer);
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -327,7 +337,21 @@ jobs:
   // API 4: Real local Gradle build. Disabled by default; enable only on a trusted loopback host.
   app.post('/api/build/local', async (req, res) => {
     const isLoopback = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress || '');
-    if (process.env.APK_STUDIO_ENABLE_LOCAL_BUILD !== 'true' || !isLoopback) {
+    const requestHost = (req.get('host') || '').split(':')[0].replace(/^\\[|\\]$/g, '');
+    const origin = req.get('origin');
+    let originIsLoopback = true;
+    if (origin) {
+      try {
+        originIsLoopback = ['localhost', '127.0.0.1', '::1'].includes(new URL(origin).hostname);
+      } catch {
+        originIsLoopback = false;
+      }
+    }
+    if (!isAuthorizedBuildRequest(req)) {
+      return res.status(401).json({ success: false, errorType: 'UNAUTHORIZED', message: 'Build API anahtarı gerekli veya geçersiz.' });
+    }
+    if (process.env.APK_STUDIO_ENABLE_LOCAL_BUILD !== 'true' || !isLoopback
+      || !['localhost', '127.0.0.1', '::1'].includes(requestHost) || !originIsLoopback) {
       return res.status(403).json({
         success: false,
         errorType: 'LOCAL_BUILD_DISABLED',
@@ -381,6 +405,7 @@ jobs:
         cwd: workspace,
         timeout: 900000,
         maxBuffer: 20 * 1024 * 1024,
+        shell: process.platform === 'win32',
         env: { ...process.env, ANDROID_HOME: androidHome, ANDROID_SDK_ROOT: androidHome }
       });
 
@@ -406,6 +431,9 @@ jobs:
   // API 5: Trigger the repository's real GitHub Actions workflow.
   // The GitHub token is read only from the server environment and is never sent to the browser.
   app.post('/api/build/cloud/trigger', async (req, res) => {
+    if (!isAuthorizedBuildRequest(req)) {
+      return res.status(401).json({ success: false, message: 'Build API anahtarı gerekli veya geçersiz.' });
+    }
     const repository = process.env.GITHUB_REPOSITORY || '';
     const token = process.env.GITHUB_TOKEN || '';
     const ref = process.env.GITHUB_BUILD_REF || 'main';
