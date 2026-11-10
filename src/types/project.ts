@@ -85,6 +85,7 @@ export interface ToolchainStatus {
     androidSdk: { available: boolean; path: string | null; details: string };
   };
   readyForLocalBuild: boolean;
+  localBuildEnabled?: boolean;
   recommendation: string;
 }
 

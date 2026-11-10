@@ -1,8 +1,24 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execFile, execSync } from 'child_process';
+import { promisify } from 'util';
+import { promises as fs } from 'fs';
+import os from 'os';
+import JSZip from 'jszip';
+import { timingSafeEqual } from 'crypto';
 import { fileURLToPath } from 'url';
+
+const execFileAsync = promisify(execFile);
+
+function isAuthorizedBuildRequest(req: express.Request): boolean {
+  const expected = process.env.APK_STUDIO_BUILD_API_KEY || '';
+  const provided = req.get('x-apk-studio-key') || '';
+  if (!expected || !provided) return false;
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+  return expectedBuffer.length === providedBuffer.length && timingSafeEqual(expectedBuffer, providedBuffer);
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,8 +28,8 @@ async function startServer() {
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   const isProduction = process.env.NODE_ENV === 'production';
 
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+  app.use(express.json({ limit: '75mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // API 1: System environment & Android SDK check
   app.get('/api/system/check', (_req, res) => {
@@ -59,10 +75,13 @@ async function startServer() {
           details: sdkAvailable ? `Yüklü: ${androidHome}` : 'ANDROID_HOME ortam değişkeni ayarlı değil'
         }
       },
-      readyForLocalBuild: javaStatus.available && gradleStatus.available && sdkAvailable,
+      readyForLocalBuild: javaStatus.available && gradleStatus.available && sdkAvailable && process.env.APK_STUDIO_ENABLE_LOCAL_BUILD === 'true',
+      localBuildEnabled: process.env.APK_STUDIO_ENABLE_LOCAL_BUILD === 'true',
       recommendation: (!javaStatus.available || !sdkAvailable)
         ? 'Bu sunucu ortamında Android SDK & OpenJDK bulunmamaktadır. Yerel derleme için projeyi ZIP olarak indirip Android Studio / Gradle ile derleyebilir veya GitHub Actions Bulut Derleme (Cloud Build) iş akışını kullanabilirsiniz.'
-        : 'Yerel derleme ortamı hazır.'
+        : process.env.APK_STUDIO_ENABLE_LOCAL_BUILD !== 'true'
+          ? 'Derleme araçları mevcut, ancak güvenlik nedeniyle yerel derleme kapalı. Yalnızca localhost sunucusunda APK_STUDIO_ENABLE_LOCAL_BUILD=true ile açın.'
+          : 'Yerel derleme ortamı hazır.'
     });
   });
 
@@ -285,10 +304,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
@@ -318,53 +337,156 @@ jobs:
     });
   });
 
-  // API 4: Honest Local Build execution endpoint
-  app.post('/api/build/local', (req, res) => {
-    // Check if tools exist
-    try {
-      execSync('java -version', { timeout: 1000 });
-      execSync('gradle -v', { timeout: 1000 });
-    } catch {
+  // API 4: Real local Gradle build. Disabled by default; enable only on a trusted loopback host.
+  app.post('/api/build/local', async (req, res) => {
+    const isLoopback = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress || '');
+    const requestHost = (req.get('host') || '').split(':')[0].replace(/^\[|\]$/g, '');
+    const origin = req.get('origin');
+    let originIsLoopback = true;
+    if (origin) {
+      try {
+        originIsLoopback = ['localhost', '127.0.0.1', '::1'].includes(new URL(origin).hostname);
+      } catch {
+        originIsLoopback = false;
+      }
+    }
+    if (!isAuthorizedBuildRequest(req)) {
+      return res.status(401).json({ success: false, errorType: 'UNAUTHORIZED', message: 'Build API anahtarı gerekli veya geçersiz.' });
+    }
+    if (process.env.APK_STUDIO_ENABLE_LOCAL_BUILD !== 'true' || !isLoopback
+      || !['localhost', '127.0.0.1', '::1'].includes(requestHost) || !originIsLoopback) {
+      return res.status(403).json({
+        success: false,
+        errorType: 'LOCAL_BUILD_DISABLED',
+        message: 'Yerel derleme güvenlik nedeniyle varsayılan olarak kapalıdır. APK_STUDIO_ENABLE_LOCAL_BUILD=true ayarını yalnızca localhost üzerinde çalışan güvenilir bir sunucuda etkinleştirin.'
+      });
+    }
+
+    const archiveBase64 = req.body?.archiveBase64;
+    if (typeof archiveBase64 !== 'string' || archiveBase64.length < 20 || archiveBase64.length > 65_000_000) {
+      return res.status(400).json({ success: false, errorType: 'INVALID_ARCHIVE', message: 'Geçersiz veya çok büyük Gradle proje arşivi.' });
+    }
+
+    const androidHome = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
+    if (!androidHome) {
       return res.status(503).json({
         success: false,
-        errorType: 'MISSING_SDK_TOOLCHAIN',
-        message: 'Yerel derleme ortamı eksik. Sunucu ortamında OpenJDK 17 ve Android SDK (aapt2, d8, zipalign, apksigner) kurulu değildir.',
-        instructions: [
-          '1. APK Studio Mobile projenizi ZIP formatında indirin.',
-          '2. Bilgisayarınızda veya sunucunuzda Android SDK komut satırı araçlarını kurun (sdkmanager, build-tools 34.0.0).',
-          '3. Veya Cloud Build (GitHub Actions) iş akışını kullanarak ücretsiz ve bulut üzerinden APK çıktısı alın.'
-        ]
+        errorType: 'MISSING_ANDROID_SDK',
+        message: 'ANDROID_HOME / ANDROID_SDK_ROOT ayarlı değil. Yerel APK derlemek için Android SDK, OpenJDK 17 ve Gradle kurulmalıdır.'
       });
     }
 
-    return res.json({
-      success: true,
-      message: 'Yerel derleme başlatıldı'
-    });
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'apk-studio-build-'));
+    try {
+      const archive = await JSZip.loadAsync(Buffer.from(archiveBase64, 'base64'));
+      const entries = Object.values(archive.files);
+      for (const entry of entries) {
+        if (entry.dir) continue;
+        const normalized = entry.name.replace(/\\/g, '/');
+        if (normalized.startsWith('/') || normalized.split('/').some((part: string) => part === '..')) {
+          throw new Error(`Güvenli olmayan ZIP yolu: ${entry.name}`);
+        }
+        const destination = path.resolve(workspace, normalized);
+        if (destination !== workspace && !destination.startsWith(workspace + path.sep)) {
+          throw new Error(`ZIP yolu çalışma klasörünün dışına çıkıyor: ${entry.name}`);
+        }
+        await fs.mkdir(path.dirname(destination), { recursive: true });
+        await fs.writeFile(destination, await entry.async('nodebuffer'));
+      }
+
+      const settingsExists = await fs.access(path.join(workspace, 'settings.gradle')).then(() => true).catch(() => false)
+        || await fs.access(path.join(workspace, 'settings.gradle.kts')).then(() => true).catch(() => false);
+      if (!settingsExists) throw new Error('Arşivde settings.gradle veya settings.gradle.kts bulunamadı.');
+
+      await execFileAsync('gradle', ['wrapper', '--gradle-version', '8.2.1', '--distribution-type', 'bin'], {
+        cwd: workspace, timeout: 180000, maxBuffer: 10 * 1024 * 1024
+      });
+
+      const wrapper = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
+      if (process.platform !== 'win32') await fs.chmod(path.join(workspace, 'gradlew'), 0o755);
+      await execFileAsync(wrapper, ['assembleDebug', '--stacktrace', '--no-daemon'], {
+        cwd: workspace,
+        timeout: 900000,
+        maxBuffer: 20 * 1024 * 1024,
+        shell: process.platform === 'win32',
+        env: { ...process.env, ANDROID_HOME: androidHome, ANDROID_SDK_ROOT: androidHome }
+      });
+
+      const apkPath = path.join(workspace, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+      const apk = await fs.readFile(apkPath);
+      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+      res.setHeader('Content-Disposition', 'attachment; filename="app-debug.apk"');
+      res.setHeader('Content-Length', String(apk.length));
+      return res.send(apk);
+    } catch (error: any) {
+      console.error('[APK Studio] Local build failed:', error);
+      return res.status(500).json({
+        success: false,
+        errorType: 'GRADLE_BUILD_FAILED',
+        message: error?.stderr || error?.message || 'Gradle derlemesi başarısız oldu.',
+        instructions: ['Android SDK lisanslarını kabul edin.', 'ANDROID_HOME yolunu ve SDK Build Tools kurulumunu kontrol edin.', 'Gradle hata çıktısındaki ilk gerçek derleme hatasını inceleyin.']
+      });
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true }).catch(() => undefined);
+    }
   });
 
-  // API 5: Cloud Build Webhook / Integration trigger
-  app.post('/api/build/cloud/trigger', (req, res) => {
-    const { cloudProvider, webhookUrl, token, projectConfig } = req.body;
+  // API 5: Trigger the repository's real GitHub Actions workflow.
+  // The GitHub token is read only from the server environment and is never sent to the browser.
+  app.post('/api/build/cloud/trigger', async (req, res) => {
+    if (!isAuthorizedBuildRequest(req)) {
+      return res.status(401).json({ success: false, message: 'Build API anahtarı gerekli veya geçersiz.' });
+    }
+    const repository = process.env.GITHUB_REPOSITORY || '';
+    const token = process.env.GITHUB_TOKEN || '';
+    const ref = process.env.GITHUB_BUILD_REF || 'main';
+    const projectPath = typeof req.body?.projectPath === 'string' ? req.body.projectPath.trim() : '.';
+    const buildVariant = req.body?.buildVariant === 'release' ? 'release' : 'debug';
 
-    if (!webhookUrl && cloudProvider !== 'github') {
-      return res.status(400).json({
+    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) || !token) {
+      return res.status(503).json({
         success: false,
-        message: 'Bulut derleme için geçerli bir Webhook URL veya GitHub Deposu gereklidir.'
+        message: 'Cloud Build yapılandırılmamış. Sunucu ortamına GITHUB_REPOSITORY (owner/repo) ve GITHUB_TOKEN ekleyin.'
       });
     }
+    if (!projectPath || projectPath.startsWith('/') || projectPath.includes('\\\\') || projectPath.split('/').some((part: string) => part === '..')) {
+      return res.status(400).json({ success: false, message: 'Geçersiz proje klasörü yolu.' });
+    }
 
-    return res.json({
-      success: true,
-      jobId: `cloud_build_${Date.now()}`,
-      provider: cloudProvider || 'custom_webhook',
-      status: 'queued',
-      message: 'Bulut derleme isteği kuyruğa eklendi. Yapılandırma doğrulandı.',
-      configSummary: {
-        packageId: projectConfig?.packageId,
-        versionCode: projectConfig?.versionCode
+    try {
+      const response = await fetch(`https://api.github.com/repos/${repository}/actions/workflows/build-apk.yml/dispatches`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/vnd.github+json',
+          'Authorization': `Bearer ${token}`,
+          'X-GitHub-Api-Version': '2022-11-28',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ ref, inputs: { project_path: projectPath, build_variant: buildVariant } })
+      });
+
+      if (!response.ok) {
+        const detail = await response.text();
+        return res.status(response.status).json({
+          success: false,
+          message: `GitHub Actions isteği reddedildi (HTTP ${response.status}). ${detail.slice(0, 500)}`
+        });
       }
-    });
+
+      return res.status(202).json({
+        success: true,
+        status: 'dispatched',
+        provider: 'github-actions',
+        repository,
+        ref,
+        projectPath,
+        buildVariant,
+        workflowUrl: `https://github.com/${repository}/actions/workflows/build-apk.yml`,
+        message: 'GitHub Actions APK derlemesi başlatıldı. Çıktı Actions sayfasındaki Artifacts bölümünde görünecek.'
+      });
+    } catch (error: any) {
+      return res.status(502).json({ success: false, message: `GitHub bağlantı hatası: ${error?.message || 'Bilinmeyen hata'}` });
+    }
   });
 
   // Setup Vite middlewares in development or serve static in production
@@ -381,8 +503,9 @@ jobs:
     });
   }
 
-  app.listen(port, '0.0.0.0', () => {
-    console.log(`[APK Studio Mobile] Server running at http://0.0.0.0:${port}`);
+  const host = process.env.APK_STUDIO_ENABLE_LOCAL_BUILD === 'true' ? '127.0.0.1' : '0.0.0.0';
+  app.listen(port, host, () => {
+    console.log(`[APK Studio Mobile] Server running at http://${host}:${port}`);
   });
 }
 

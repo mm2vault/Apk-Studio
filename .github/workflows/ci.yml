@@ -1,0 +1,25 @@
+name: APK Studio CI
+# Run checks for the current WebView entry-point build fix.
+
+on:
+  push:
+    branches: [main, master, "feature/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install
+      - name: Type-check
+        run: npm run lint
+      - name: Build frontend
+        run: npm run build

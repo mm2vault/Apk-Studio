@@ -159,6 +159,89 @@ export async function generateProjectZip(project: Project): Promise<Blob> {
 
 export async function generateFullAndroidGradleProjectZip(project: Project): Promise<Blob> {
   const zip = new JSZip();
+
+  // Native Android imports must keep their original Gradle structure; do not wrap them in WebView assets.
+  if (project.type === 'native-android') {
+    for (const file of project.files) {
+      const safePath = file.path.replace(/\\/g, '/').replace(/^\/+/, '');
+      if (!safePath || safePath.split('/').some(part => part === '..')) {
+        throw new Error(`Geçersiz Android proje dosya yolu: ${file.path}`);
+      }
+      if (file.isBinary) {
+        const base64Data = file.content.includes(',') ? file.content.split(',').pop()! : file.content;
+        zip.file(safePath, base64Data, { base64: true });
+      } else {
+        zip.file(safePath, file.content);
+      }
+    }
+    zip.file('README_APK_STUDIO.md', `# Yerel Android Projesi
+
+Bu arşiv, APK Studio Mobile tarafından içe aktarılan Android Gradle projesinin orijinal klasör yapısını korur.
+
+## Bulutta APK derleme
+1. Arşivi bir GitHub deposuna yükleyin.
+2. Actions sekmesinden **APK Studio - Build Android APK** iş akışını çalıştırın.
+3. Proje kök dizindeyse project_path alanına . yazın.
+4. Debug veya Release seçip Run workflow düğmesine basın.
+5. APK dosyasını çalışmanın Artifacts bölümünden indirin.
+
+Bu işlem yalnızca geçerli bir Android Gradle projesi için çalışır.
+`);
+    zip.file('.github/workflows/build-apk.yml', `name: APK Studio - Build Android APK
+on:
+  workflow_dispatch:
+    inputs:
+      project_path:
+        description: "Android Gradle project folder (use . for repository root)"
+        required: true
+        default: "."
+        type: string
+      build_variant:
+        description: "APK build variant"
+        required: true
+        default: "debug"
+        type: choice
+        options: [debug, release]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.2.1"
+      - name: Prepare Gradle wrapper
+        working-directory: \${{ inputs.project_path }}
+        run: |
+          test -f settings.gradle -o -f settings.gradle.kts
+          if [ ! -f gradlew ]; then gradle wrapper --gradle-version 8.2.1 --distribution-type bin; fi
+          chmod +x gradlew
+      - name: Build APK
+        working-directory: \${{ inputs.project_path }}
+        env:
+          BUILD_VARIANT: \${{ inputs.build_variant }}
+        run: ./gradlew "assemble\${BUILD_VARIANT^}" --stacktrace --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-studio-\${{ inputs.build_variant }}
+          path: \${{ inputs.project_path }}/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 14
+`);
+    return await zip.generateAsync({ type: 'blob' });
+  }
+
+  if (project.type !== 'web-to-apk') {
+    throw new Error('Bu proje türü otomatik WebView APK dönüşümünü desteklemiyor. Yerel Android Gradle projesi veya HTML/CSS/JavaScript web projesi kullanın. Lua için LÖVE Android, Python için Kivy/Buildozer runtime entegrasyonu gerekir.');
+  }
+
   const cfg = project.config;
   const pkg = cfg.packageId || 'com.example.apkstudio';
   const pkgPath = pkg.replace(/\./g, '/');
@@ -277,6 +360,16 @@ dependencies {
 </manifest>
 `);
 
+  const htmlEntry = project.files.find(f => f.path.toLowerCase() === 'index.html')
+    || project.files.find(f => /\.html?$/i.test(f.path));
+  const webEntryPath = (htmlEntry?.path || 'index.html')
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .split('/')
+    .filter(part => part && part !== '.' && part !== '..')
+    .join('/');
+  const escapedWebEntryPath = webEntryPath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+
   // 6. MainActivity.java
   zip.file(`app/src/main/java/${pkgPath}/MainActivity.java`, `package ${pkg};
 
@@ -307,7 +400,7 @@ public class MainActivity extends AppCompatActivity {
         ws.setUseWideViewPort(true);
 
         webView.setWebViewClient(new WebViewClient());
-        webView.loadUrl("file:///android_asset/index.html");
+        webView.loadUrl("file:///android_asset/${escapedWebEntryPath}");
     }
 
     @Override
@@ -329,7 +422,11 @@ public class MainActivity extends AppCompatActivity {
 
   // 8. Place web/project files inside app/src/main/assets/
   for (const file of project.files) {
-    const assetPath = `app/src/main/assets/${file.path}`;
+    const safeAssetPath = file.path.replace(/\\/g, '/').replace(/^\/+/, '');
+    if (!safeAssetPath || safeAssetPath.split('/').some(part => part === '..')) {
+      throw new Error(`Geçersiz web proje dosya yolu: ${file.path}`);
+    }
+    const assetPath = `app/src/main/assets/${safeAssetPath}`;
     if (file.isBinary) {
       const parts = file.content.split(',');
       const base64Data = parts.length > 1 ? parts[1] : parts[0];
@@ -339,41 +436,53 @@ public class MainActivity extends AppCompatActivity {
     }
   }
 
-  // 9. GitHub Actions Workflow (.github/workflows/build-apk.yml)
-  zip.file('.github/workflows/build-apk.yml', `name: APK Studio Mobile - Android APK Derleme
+  // 9. GitHub Actions workflow (manual dispatch; performs a real Gradle build)
+  zip.file('.github/workflows/build-apk.yml', `name: APK Studio - Build Android APK
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
-
+    inputs:
+      project_path:
+        description: "Android Gradle project folder (use . for repository root)"
+        required: true
+        default: "."
+        type: string
+      build_variant:
+        description: "APK build variant"
+        required: true
+        default: "debug"
+        type: choice
+        options: [debug, release]
+permissions:
+  contents: read
 jobs:
   build:
-    name: Gradle Assemble APK
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - name: Kodu Getir
-        uses: actions/checkout@v4
-
-      - name: OpenJDK 17 Kurulumu
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
         with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Gradle Wrapper Yetkilendir
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.2.1"
+      - name: Validate Gradle project
+        working-directory: \${{ inputs.project_path }}
         run: |
-          gradle wrapper
+          test -f settings.gradle -o -f settings.gradle.kts
+          if [ ! -f gradlew ]; then gradle wrapper --gradle-version 8.2.1 --distribution-type bin; fi
           chmod +x gradlew
-
-      - name: APK Derle (Release / Debug)
-        run: ./gradlew assembleDebug --stacktrace
-
-      - name: APK Dosyasını Yükle (Artifact)
-        uses: actions/upload-artifact@v4
+      - name: Build APK
+        working-directory: \${{ inputs.project_path }}
+        env:
+          BUILD_VARIANT: \${{ inputs.build_variant }}
+        run: ./gradlew "assemble\${BUILD_VARIANT^}" --stacktrace --no-daemon
+      - uses: actions/upload-artifact@v4
         with:
           name: ${project.name.replace(/[^a-zA-Z0-9_-]/g, '_')}-apk
-          path: app/build/outputs/apk/**/*.apk
+          path: \${{ inputs.project_path }}/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
           retention-days: 14
 `);
 

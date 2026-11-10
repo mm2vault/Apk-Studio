@@ -9,6 +9,7 @@ import { CodeEditorView } from './components/editor/CodeEditorView';
 import { AppConfigView } from './components/config/AppConfigView';
 import { BuildView } from './components/build/BuildView';
 import { ExportView } from './components/export/ExportView';
+import { UpdateView } from './components/updates/UpdateView';
 
 export default function App() {
   const [projects, setProjects] = useState<Project[]>(() => StorageService.getProjects());
@@ -17,10 +18,8 @@ export default function App() {
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // Sync active project
   const currentProject = projects.find(p => p.id === activeProjectId) || projects[0] || null;
 
-  // Set default active file when current project changes or files change
   useEffect(() => {
     if (currentProject && currentProject.files.length > 0) {
       if (!activeFileId || !currentProject.files.some(f => f.id === activeFileId)) {
@@ -30,7 +29,6 @@ export default function App() {
     }
   }, [currentProject?.id]);
 
-  // Project handlers
   const handleSelectProject = (id: string) => {
     setActiveProjectId(id);
     StorageService.setActiveProjectId(id);
@@ -60,32 +58,17 @@ export default function App() {
     }
   };
 
-  // Editor file update handler
   const handleUpdateFileContent = (fileId: string, newContent: string) => {
     if (!currentProject) return;
-
-    const updatedFiles = currentProject.files.map(f => {
-      if (f.id === fileId) {
-        return {
-          ...f,
-          content: newContent,
-          size: newContent.length,
-          lastModified: Date.now()
-        };
-      }
-      return f;
-    });
-
-    handleUpdateProject({
-      ...currentProject,
-      files: updatedFiles,
-      updatedAt: Date.now()
-    });
+    const updatedFiles = currentProject.files.map(f => f.id === fileId
+      ? { ...f, content: newContent, size: newContent.length, lastModified: Date.now() }
+      : f
+    );
+    handleUpdateProject({ ...currentProject, files: updatedFiles, updatedAt: Date.now() });
   };
 
   return (
     <div className="min-h-screen bg-[#08090d] text-slate-100 flex flex-col font-sans selection:bg-purple-600 selection:text-white">
-      {/* Top Application Bar */}
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -94,9 +77,7 @@ export default function App() {
         onSelectProject={handleSelectProject}
         onCreateProjectClick={() => setIsCreateModalOpen(true)}
       />
-
-      {/* Main Content Area */}
-      <main className="flex-1">
+      <main className="flex-1 pb-16 md:pb-0">
         {activeTab === 'dashboard' && (
           <DashboardView
             projects={projects}
@@ -109,51 +90,24 @@ export default function App() {
             setIsCreateModalOpen={setIsCreateModalOpen}
           />
         )}
-
         {activeTab === 'files' && currentProject && (
-          <FileManagerView
-            project={currentProject}
-            onUpdateProject={handleUpdateProject}
-            onOpenFileInEditor={(fileId) => {
-              setActiveFileId(fileId);
-              setActiveTab('editor');
-            }}
-            setActiveTab={setActiveTab}
-          />
+          <FileManagerView project={currentProject} onUpdateProject={handleUpdateProject}
+            onOpenFileInEditor={(fileId) => { setActiveFileId(fileId); setActiveTab('editor'); }}
+            setActiveTab={setActiveTab} />
         )}
-
         {activeTab === 'editor' && currentProject && (
-          <CodeEditorView
-            project={currentProject}
-            onUpdateFileContent={handleUpdateFileContent}
-            activeFileId={activeFileId}
-            setActiveFileId={setActiveFileId}
-          />
+          <CodeEditorView project={currentProject} onUpdateFileContent={handleUpdateFileContent}
+            activeFileId={activeFileId} setActiveFileId={setActiveFileId} />
         )}
-
         {activeTab === 'config' && currentProject && (
-          <AppConfigView
-            project={currentProject}
-            onUpdateProject={handleUpdateProject}
-          />
+          <AppConfigView project={currentProject} onUpdateProject={handleUpdateProject} />
         )}
-
         {activeTab === 'build' && currentProject && (
-          <BuildView
-            project={currentProject}
-            onUpdateProject={handleUpdateProject}
-            setActiveTab={setActiveTab}
-          />
+          <BuildView project={currentProject} onUpdateProject={handleUpdateProject} setActiveTab={setActiveTab} />
         )}
-
-        {activeTab === 'export' && currentProject && (
-          <ExportView
-            project={currentProject}
-          />
-        )}
+        {activeTab === 'export' && currentProject && <ExportView project={currentProject} />}
+        {activeTab === 'updates' && <UpdateView />}
       </main>
-
-      {/* Mobile-first Bottom Navigation Bar */}
       <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} />
     </div>
   );
