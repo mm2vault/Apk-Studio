@@ -28,8 +28,9 @@ Configure these variables on the APK Studio server (server-side only):
 - `GITHUB_REPOSITORY=owner/repository`
 - `GITHUB_TOKEN=<token with Actions: write permission for that repository>`
 - `GITHUB_BUILD_REF=main`
+- `APK_STUDIO_BUILD_API_KEY=<long random secret entered in the APK Studio Build screen>`
 
-The backend dispatches the repository workflow using the server-held token. Do not put the token in frontend code or commit it to the repository. The Android Gradle project must already exist in the target repository at the selected `project_path`.
+The backend dispatches the repository workflow using the server-held token. The Build screen also requires the separate `APK_STUDIO_BUILD_API_KEY`, which is entered per session and is never persisted. Do not put either secret in frontend code or commit them to the repository. The Android Gradle project must already exist in the target repository at the selected `project_path`.
 
 ## Local APK builds
 
