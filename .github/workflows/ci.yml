@@ -1,4 +1,5 @@
 name: APK Studio CI
+# Keep dependency installation strict; dependency ranges are kept peer-compatible.
 
 on:
   push:
