@@ -39,6 +39,8 @@ jobs:
         run: npm install
 
       - name: Build web application
+        env:
+          VITE_APP_VERSION: 0.1.${{ github.run_number }}
         run: npm run build
 
       - name: Generate Android project
@@ -71,7 +73,7 @@ jobs:
             echo "APK file was not produced."
             exit 1
           fi
-          gh release create "apk-build-${GITHUB_RUN_NUMBER}" "$APK_PATH" \
+          gh release create "v0.1.${GITHUB_RUN_NUMBER}" "$APK_PATH" \
             --title "APK Studio ${BUILD_VARIANT} build ${GITHUB_RUN_NUMBER}" \
             --notes "Automatically generated APK Studio Android build." \
-            --prerelease
+            
