@@ -390,7 +390,7 @@ public class MainActivity extends AppCompatActivity {
         ws.setUseWideViewPort(true);
 
         webView.setWebViewClient(new WebViewClient());
-        webView.loadUrl("file:///android_asset/index.html");
+        webView.loadUrl("file:///android_asset/${escapedWebEntryPath}");
     }
 
     @Override
@@ -411,8 +411,22 @@ public class MainActivity extends AppCompatActivity {
 `);
 
   // 8. Place web/project files inside app/src/main/assets/
+  const htmlEntry = project.files.find(f => f.path.toLowerCase() === 'index.html')
+    || project.files.find(f => /\\.html?$/i.test(f.path));
+  const webEntryPath = (htmlEntry?.path || 'index.html')
+    .replace(/\\\\/g, '/')
+    .replace(/^\\/+/, '')
+    .split('/')
+    .filter(part => part && part !== '.' && part !== '..')
+    .join('/');
+  const escapedWebEntryPath = webEntryPath.replace(/\\\\/g, '\\\\').replace(/"/g, '\\"');
+
   for (const file of project.files) {
-    const assetPath = `app/src/main/assets/${file.path}`;
+    const safeAssetPath = file.path.replace(/\\\\/g, '/').replace(/^\\/+/, '');
+    if (!safeAssetPath || safeAssetPath.split('/').some(part => part === '..')) {
+      throw new Error(`Geçersiz web proje dosya yolu: ${file.path}`);
+    }
+    const assetPath = `app/src/main/assets/${safeAssetPath}`;
     if (file.isBinary) {
       const parts = file.content.split(',');
       const base64Data = parts.length > 1 ? parts[1] : parts[0];
