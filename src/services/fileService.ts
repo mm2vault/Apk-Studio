@@ -360,6 +360,16 @@ dependencies {
 </manifest>
 `);
 
+  const htmlEntry = project.files.find(f => f.path.toLowerCase() === 'index.html')
+    || project.files.find(f => /\.html?$/i.test(f.path));
+  const webEntryPath = (htmlEntry?.path || 'index.html')
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .split('/')
+    .filter(part => part && part !== '.' && part !== '..')
+    .join('/');
+  const escapedWebEntryPath = webEntryPath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+
   // 6. MainActivity.java
   zip.file(`app/src/main/java/${pkgPath}/MainActivity.java`, `package ${pkg};
 
@@ -411,16 +421,6 @@ public class MainActivity extends AppCompatActivity {
 `);
 
   // 8. Place web/project files inside app/src/main/assets/
-  const htmlEntry = project.files.find(f => f.path.toLowerCase() === 'index.html')
-    || project.files.find(f => /\.html?$/i.test(f.path));
-  const webEntryPath = (htmlEntry?.path || 'index.html')
-    .replace(/\\/g, '/')
-    .replace(/^\/+/, '')
-    .split('/')
-    .filter(part => part && part !== '.' && part !== '..')
-    .join('/');
-  const escapedWebEntryPath = webEntryPath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-
   for (const file of project.files) {
     const safeAssetPath = file.path.replace(/\\/g, '/').replace(/^\/+/, '');
     if (!safeAssetPath || safeAssetPath.split('/').some(part => part === '..')) {
