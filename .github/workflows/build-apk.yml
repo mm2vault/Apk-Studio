@@ -3,11 +3,6 @@ name: APK Studio - Build Android APK
 on:
   workflow_dispatch:
     inputs:
-      project_path:
-        description: "Android Gradle project folder in this repository (use . for the repository root)"
-        required: true
-        default: "."
-        type: string
       build_variant:
         description: "APK build variant"
         required: true
@@ -21,40 +16,34 @@ permissions:
   contents: read
 
 concurrency:
-  group: apk-build-${{ github.ref }}-${{ inputs.project_path }}
+  group: apk-studio-android-build-${{ github.ref }}-${{ inputs.build_variant }}
   cancel-in-progress: false
 
 jobs:
   build:
     name: Build ${{ inputs.build_variant }} APK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
-      - name: Checkout project
+      - name: Checkout source
         uses: actions/checkout@v6
 
-      - name: Validate project folder
-        env:
-          PROJECT_PATH: ${{ inputs.project_path }}
-        run: |
-          python - <<'PY'
-          import os
-          from pathlib import Path
-          raw = os.environ["PROJECT_PATH"].strip()
-          if not raw or raw.startswith("/") or "\\" in raw:
-              raise SystemExit("Invalid project_path")
-          parts = Path(raw).parts
-          if any(part in (".", "..") for part in parts if part != "."):
-              raise SystemExit("project_path cannot contain traversal segments")
-          target = (Path.cwd() / raw).resolve()
-          root = Path.cwd().resolve()
-          if target != root and root not in target.parents:
-              raise SystemExit("project_path must stay inside the repository")
-          if not target.is_dir():
-              raise SystemExit(f"Project folder not found: {raw}")
-          if not (target / "settings.gradle").exists() and not (target / "settings.gradle.kts").exists():
-              raise SystemExit("No settings.gradle or settings.gradle.kts found in project folder")
-          PY
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web application
+        run: npm run build
+
+      - name: Generate Android project
+        run: npx cap add android
+
+      - name: Sync web assets to Android
+        run: npx cap sync android
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -62,30 +51,18 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
-        with:
-          gradle-version: "8.2.1"
-
-      - name: Create Gradle wrapper when missing
-        working-directory: ${{ inputs.project_path }}
-        run: |
-          if [ ! -f gradlew ]; then
-            gradle wrapper --gradle-version 8.2.1 --distribution-type bin
-          fi
-          chmod +x gradlew
-
       - name: Build APK
-        working-directory: ${{ inputs.project_path }}
+        working-directory: android
         env:
           BUILD_VARIANT: ${{ inputs.build_variant }}
-        run: ./gradlew "assemble${BUILD_VARIANT^}" --stacktrace --no-daemon
+        run: |
+          chmod +x ./gradlew
+          ./gradlew "assemble${BUILD_VARIANT^}" --stacktrace --no-daemon
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: apk-studio-${{ inputs.build_variant }}-${{ github.run_number }}
-          path: |
-            ${{ inputs.project_path }}/app/build/outputs/apk/**/*.apk
+          path: android/app/build/outputs/apk/**/*.apk
           if-no-files-found: error
           retention-days: 14
