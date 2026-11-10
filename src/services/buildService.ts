@@ -85,13 +85,13 @@ export const BuildApiService = {
     }
   },
 
-  async requestLocalBuild(project: Project): Promise<LocalBuildResponse> {
+  async requestLocalBuild(project: Project, apiKey: string): Promise<LocalBuildResponse> {
     try {
       const projectZip = await generateFullAndroidGradleProjectZip(project);
       const archiveBase64 = await blobToBase64(projectZip);
       const response = await fetch('/api/build/local', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-APK-Studio-Key': apiKey },
         body: JSON.stringify({ archiveBase64, fileName: `${project.id}.zip` })
       });
 
@@ -121,11 +121,11 @@ export const BuildApiService = {
     }
   },
 
-  async triggerCloudBuild(project: Project, projectPath = '.'): Promise<any> {
+  async triggerCloudBuild(project: Project, projectPath = '.', apiKey = ''): Promise<any> {
     try {
       const response = await fetch('/api/build/cloud/trigger', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-APK-Studio-Key': apiKey },
         body: JSON.stringify({
           projectPath,
           buildVariant: 'debug',
