@@ -60,7 +60,15 @@ export const BuildApiService = {
         })
       });
       if (!response.ok) throw new Error('Doğrulama servisi hatası');
-      return await response.json();
+      const result = await response.json() as ValidationResult;
+      if (!['web-to-apk', 'native-android'].includes(project.type)) {
+        return {
+          ...result,
+          valid: false,
+          errors: [...result.errors, 'Bu proje türü doğrudan APK derlemesini desteklemiyor. Web projesi veya yerel Android Gradle projesi kullanın.']
+        };
+      }
+      return result;
     } catch {
       const errors: string[] = [];
       const warnings: string[] = [];
