@@ -1,5 +1,5 @@
 name: APK Studio CI
-# CI checks TypeScript and the production Vite bundle for the current branch.
+# Run checks for the current WebView entry-point build fix.
 
 on:
   push:
