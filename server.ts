@@ -75,10 +75,13 @@ async function startServer() {
           details: sdkAvailable ? `Yüklü: ${androidHome}` : 'ANDROID_HOME ortam değişkeni ayarlı değil'
         }
       },
-      readyForLocalBuild: javaStatus.available && gradleStatus.available && sdkAvailable,
+      readyForLocalBuild: javaStatus.available && gradleStatus.available && sdkAvailable && process.env.APK_STUDIO_ENABLE_LOCAL_BUILD === 'true',
+      localBuildEnabled: process.env.APK_STUDIO_ENABLE_LOCAL_BUILD === 'true',
       recommendation: (!javaStatus.available || !sdkAvailable)
         ? 'Bu sunucu ortamında Android SDK & OpenJDK bulunmamaktadır. Yerel derleme için projeyi ZIP olarak indirip Android Studio / Gradle ile derleyebilir veya GitHub Actions Bulut Derleme (Cloud Build) iş akışını kullanabilirsiniz.'
-        : 'Yerel derleme ortamı hazır.'
+        : process.env.APK_STUDIO_ENABLE_LOCAL_BUILD !== 'true'
+          ? 'Derleme araçları mevcut, ancak güvenlik nedeniyle yerel derleme kapalı. Yalnızca localhost sunucusunda APK_STUDIO_ENABLE_LOCAL_BUILD=true ile açın.'
+          : 'Yerel derleme ortamı hazır.'
     });
   });
 
