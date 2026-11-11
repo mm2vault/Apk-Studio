@@ -8,7 +8,7 @@ on:
       build_variant:
         description: "APK build variant"
         required: true
-        default: "debug"
+        default: "release"
         type: choice
         options:
           - debug
@@ -110,9 +110,9 @@ jobs:
             ./gradlew assembleDebug --stacktrace --no-daemon
           fi
 
-      - name: Publish direct APK download
+      - name: Locate APK
+        id: apk
         env:
-          GH_TOKEN: ${{ github.token }}
           BUILD_VARIANT: ${{ inputs.build_variant || 'debug' }}
         run: |
           APK_PATH="$(find "android/app/build/outputs/apk/${BUILD_VARIANT}" -maxdepth 1 -type f -name "*.apk" | sort | head -n 1)"
@@ -120,6 +120,23 @@ jobs:
             echo "APK file was not produced."
             exit 1
           fi
-          gh release create "v0.1.${GITHUB_RUN_NUMBER}" "$APK_PATH" \
-            --title "APK Studio ${BUILD_VARIANT} build ${GITHUB_RUN_NUMBER}" \
-            --notes "Automatically generated APK Studio ${BUILD_VARIANT} build. Version code: ${GITHUB_RUN_NUMBER}."
+          echo "path=$APK_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Store Debug APK as test artifact
+        if: ${{ (inputs.build_variant || 'debug') == 'debug' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-studio-debug-${{ github.run_number }}
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish signed Release APK
+        if: ${{ inputs.build_variant == 'release' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APK_PATH: ${{ steps.apk.outputs.path }}
+        run: |
+          gh release create "v0.1.${GITHUB_RUN_NUMBER}" "${APK_PATH}#apk-studio-release.apk" \
+            --title "APK Studio v0.1.${GITHUB_RUN_NUMBER}" \
+            --notes "Signed APK Studio release. Android versionCode: ${GITHUB_RUN_NUMBER}. Install over an existing copy only when signed with the same release keystore."
