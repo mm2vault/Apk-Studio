@@ -47,8 +47,10 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
   const handleLocalBuild = async () => {
     setLocalBuilding(true);
     setMessage(null);
+    setBuildLogs([]);
     try {
       const result = await BuildApiService.requestLocalBuild(project, apiKey);
+      setBuildLogs(result.logs || []);
       if (result.success && result.apk) {
         const safeName = project.config.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
         triggerDownload(result.apk, `${safeName || 'app'}-debug.apk`);
