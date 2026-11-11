@@ -423,15 +423,15 @@ jobs:
       const output = [error?.stdout, error?.stderr]
         .map(value => String(value || '').trim())
         .filter(Boolean)
-        .join('\\n');
+        .join('\n');
       const timestamp = new Date().toISOString();
-      const outputLines = output.split(/\\r?\\n/).map(line => line.trim()).filter(Boolean).slice(-120);
+      const outputLines = output.split(/\r?\n/).map(line => line.trim()).filter(Boolean).slice(-120);
       const logs = (outputLines.length ? outputLines : [String(error?.message || 'Gradle derlemesi başarısız oldu.')])
         .map((line, index) => ({
-          id: `local-${Date.now()}-${index}`,
+          id: \`local-\${Date.now()}-\${index}\`,
           timestamp,
-          level: /\\b(error|failed|exception)\\b/i.test(line) ? 'error' as const
-            : /\\bwarn(ing)?\\b/i.test(line) ? 'warn' as const : 'info' as const,
+          level: /\b(error|failed|exception)\b/i.test(line) ? 'error' as const
+            : /\bwarn(ing)?\b/i.test(line) ? 'warn' as const : 'info' as const,
           message: line.slice(0, 1200),
           step: 'Gradle'
         }));
