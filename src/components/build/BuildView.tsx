@@ -23,7 +23,8 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
   const [loadingCheck, setLoadingCheck] = useState(true);
   const [localBuilding, setLocalBuilding] = useState(false);
   const [cloudBuilding, setCloudBuilding] = useState(false);
-  const [message, setMessage] = useState<{ kind: 'success' | 'error' | 'info'; text: string; url?: string } | null>(null);\n  const [buildLogs, setBuildLogs] = useState<BuildLog[]>([]);
+  const [message, setMessage] = useState<{ kind: 'success' | 'error' | 'info'; text: string; url?: string } | null>(null);
+  const [buildLogs, setBuildLogs] = useState<BuildLog[]>([]);
 
   const refreshStatus = async () => {
     setLoadingCheck(true);
