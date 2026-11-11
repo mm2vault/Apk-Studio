@@ -68,12 +68,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BUILD_VARIANT: ${{ inputs.build_variant || 'debug' }}
         run: |
-          APK_PATH="$(find android/app/build/outputs/apk -type f -name '*.apk' | head -n 1)"
+          APK_PATH="$(find "android/app/build/outputs/apk/${BUILD_VARIANT}" -maxdepth 1 -type f -name "*.apk" | sort | head -n 1)"
           if [ -z "$APK_PATH" ]; then
             echo "APK file was not produced."
             exit 1
           fi
           gh release create "v0.1.${GITHUB_RUN_NUMBER}" "$APK_PATH" \
             --title "APK Studio ${BUILD_VARIANT} build ${GITHUB_RUN_NUMBER}" \
-            --notes "Automatically generated APK Studio Android build." \
-            
+            --notes "Automatically generated APK Studio Android build."
