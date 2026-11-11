@@ -15,10 +15,10 @@ import {
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
-import { Project, ProjectType } from '../../types/project';
+import { Project } from '../../types/project';
 import { formatFileSize } from '../../services/typeDetector';
 import { DEFAULT_CONFIG } from '../../services/storage';
-import { extractZipArchive, readBrowserFile } from '../../services/fileService';
+import { extractZipArchive } from '../../services/fileService';
 
 interface DashboardViewProps {
   projects: Project[];
@@ -44,7 +44,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Create Modal state
   const [newProjectName, setNewProjectName] = useState('');
   const [newPackageId, setNewPackageId] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState<ProjectType>('web-to-apk');
   const [isImportingZip, setIsImportingZip] = useState(false);
   const [importStatusText, setImportStatusText] = useState('');
 
@@ -54,215 +53,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const name = newProjectName.trim() || 'Yeni Mobil Proje';
-    const pkg = newPackageId.trim() || `com.mobile.${name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'app'}`;
+    const name = newProjectName.trim() || 'Yeni Proje';
+    const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'app';
+    const pkg = newPackageId.trim() || `com.mobile.${slug}`;
 
-    let initialFiles = [];
-
-    if (selectedTemplate === 'web-to-apk') {
-      initialFiles = [
-        {
-          id: `f_${Date.now()}_1`,
-          name: 'index.html',
-          path: 'index.html',
-          size: 620,
-          type: 'text/html',
-          isBinary: false,
-          lastModified: Date.now(),
-          content: `<!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>${name}</title>
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <main class="app-card">
-    <div class="logo">🚀</div>
-    <h1>${name}</h1>
-    <p>Mobil web uygulamanız başarıyla oluşturuldu!</p>
-    <button onclick="alert('Mobil dokunmatik etkileşim çalışıyor!')">Tıkla & Dene</button>
-  </main>
-  <script src="app.js"></script>
-</body>
-</html>`
-        },
-        {
-          id: `f_${Date.now()}_2`,
-          name: 'style.css',
-          path: 'style.css',
-          size: 450,
-          type: 'text/css',
-          isBinary: false,
-          lastModified: Date.now(),
-          content: `body {
-  margin: 0;
-  padding: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  background: #0f111a;
-  color: #fff;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-}
-.app-card {
-  text-align: center;
-  padding: 32px 24px;
-  background: #1a1d2d;
-  border-radius: 20px;
-  max-width: 340px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-}
-.logo { font-size: 52px; margin-bottom: 12px; }
-h1 { font-size: 22px; margin: 0 0 8px 0; color: #8b5cf6; }
-p { font-size: 14px; color: #94a3b8; margin-bottom: 24px; }
-button {
-  background: linear-gradient(135deg, #7c3aed, #06b6d4);
-  color: white;
-  border: none;
-  padding: 12px 28px;
-  border-radius: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}`
-        },
-        {
-          id: `f_${Date.now()}_3`,
-          name: 'app.js',
-          path: 'app.js',
-          size: 280,
-          type: 'application/javascript',
-          isBinary: false,
-          lastModified: Date.now(),
-          content: `console.log('${name} başlatıldı.');
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('DOM hazır, dokunmatik kontroller bağlandı.');
-});`
-        }
-      ];
-    } else if (selectedTemplate === 'love2d-lua') {
-      initialFiles = [
-        {
-          id: `f_${Date.now()}_1`,
-          name: 'main.lua',
-          path: 'main.lua',
-          size: 780,
-          type: 'text/x-lua',
-          isBinary: false,
-          lastModified: Date.now(),
-          content: `-- LÖVE2D Mobile Game Script
-function love.load()
-    player = { x = 160, y = 300, radius = 24, speed = 200 }
-    score = 0
-    love.graphics.setBackgroundColor(0.08, 0.09, 0.15)
-end
-
-function love.update(dt)
-    -- Dokunmatik kontroller
-    local touches = love.touch.getTouches()
-    for _, id in ipairs(touches) do
-        local x, y = love.touch.getPosition(id)
-        player.x = x
-        player.y = y
-    end
-end
-
-function love.draw()
-    love.graphics.setColor(0.55, 0.36, 0.96)
-    love.graphics.circle("fill", player.x, player.y, player.radius)
-    love.graphics.setColor(1, 1, 1)
-    love.graphics.print("Dokunarak daireyi hareket ettirin", 20, 40)
-end`
-        },
-        {
-          id: `f_${Date.now()}_2`,
-          name: 'conf.lua',
-          path: 'conf.lua',
-          size: 260,
-          type: 'text/x-lua',
-          isBinary: false,
-          lastModified: Date.now(),
-          content: `function love.conf(t)
-    t.identity = "${name.toLowerCase().replace(/[^a-z0-9]/g, '')}"
-    t.window.title = "${name}"
-    t.window.width = 360
-    t.window.height = 640
-    t.window.fullscreen = true
-    t.modules.touch = true
-end`
-        }
-      ];
-    } else if (selectedTemplate === 'python-mobile') {
-      initialFiles = [
-        {
-          id: `f_${Date.now()}_1`,
-          name: 'main.py',
-          path: 'main.py',
-          size: 580,
-          type: 'text/x-python',
-          isBinary: false,
-          lastModified: Date.now(),
-          content: `from kivy.app import App
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.button import Button
-from kivy.uix.label import Label
-
-class MobileApp(App):
-    def build(self):
-        layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
-        self.label = Label(text='${name}\\nPython Kivy Mobil', font_size='20sp', halign='center')
-        btn = Button(text='Dokun ve Test Et', size_hint_y=0.3, background_color=(0.55, 0.36, 0.96, 1))
-        btn.bind(on_press=self.on_click)
-        layout.add_widget(self.label)
-        layout.add_widget(btn)
-        return layout
-
-    def on_click(self, instance):
-        self.label.text = 'Python mobil motoru çalışıyor! ✅'
-
-if __name__ == '__main__':
-    MobileApp().run()`
-        }
-      ];
-    } else {
-      // Custom / Native Android
-      initialFiles = [
-        {
-          id: `f_${Date.now()}_1`,
-          name: 'AndroidManifest.xml',
-          path: 'AndroidManifest.xml',
-          size: 450,
-          type: 'application/xml',
-          isBinary: false,
-          lastModified: Date.now(),
-          content: `<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="${pkg}">
-    <uses-permission android:name="android.permission.INTERNET" />
-    <application
-        android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="${name}"
-        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
-        <activity android:name=".MainActivity" android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-    </application>
-</manifest>`
-        }
-      ];
-    }
-
+    // Start empty: users bring their own source files or import a project ZIP.
     const newProject: Project = {
       id: `proj_${Date.now()}`,
       name,
-      description: `${selectedTemplate} tabanlı APK projesi`,
-      type: selectedTemplate,
+      description: 'Kullanıcının kendi dosyalarını eklemesi için boş proje',
+      type: 'custom',
       createdAt: Date.now(),
       updatedAt: Date.now(),
       config: {
@@ -276,7 +76,7 @@ if __name__ == '__main__':
         apiToken: '',
         autoDeploy: false
       },
-      files: initialFiles
+      files: []
     };
 
     onCreateProject(newProject);
@@ -616,32 +416,11 @@ if __name__ == '__main__':
                 </span>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-2">
-                  Proje Şablonu Seçin
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: 'web-to-apk', name: 'Web to APK', desc: 'HTML5, CSS, JS WebView' },
-                    { id: 'love2d-lua', name: 'Lua / LÖVE2D', desc: 'Mobil 2D Oyun Motoru' },
-                    { id: 'python-mobile', name: 'Python Kivy', desc: 'Python Mobil Arayüz' },
-                    { id: 'custom', name: 'Boş / Özel', desc: 'Manuel kaynak kod' }
-                  ].map((tpl) => (
-                    <button
-                      key={tpl.id}
-                      type="button"
-                      onClick={() => setSelectedTemplate(tpl.id as ProjectType)}
-                      className={`p-3 rounded-xl text-left border transition-all ${
-                        selectedTemplate === tpl.id
-                          ? 'border-purple-500 bg-purple-950/30 text-white'
-                          : 'border-white/5 bg-[#12141f] text-slate-300 hover:border-white/15'
-                      }`}
-                    >
-                      <div className="text-xs font-bold">{tpl.name}</div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">{tpl.desc}</div>
-                    </button>
-                  ))}
-                </div>
+              <div className="rounded-xl border border-white/10 bg-[#12141f] p-3">
+                <div className="text-xs font-semibold text-slate-200">Boş proje</div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Hazır oyun veya demo eklenmez. Kendi dosyalarını tek tek ekleyebilir ya da mevcut projenin ZIP arşivini içe aktarabilirsin.
+                </p>
               </div>
 
               {/* ZIP import option */}
