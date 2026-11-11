@@ -1,12 +1,28 @@
 import JSZip from 'jszip';
 import { ProjectFile, Project } from '../types/project';
 
-// List of text extensions that should be read as UTF-8
+// Text extensions are decoded as UTF-8 during file and ZIP import.
 const TEXT_EXTENSIONS = [
-  'html', 'htm', 'css', 'js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx',
-  'json', 'xml', 'gradle', 'java', 'kt', 'kts', 'lua', 'py', 'txt',
-  'md', 'properties', 'yaml', 'yml', 'svg', 'sh', 'bat', 'env'
+  'html', 'htm', 'css', 'scss', 'sass', 'less',
+  'js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx', 'vue', 'svelte',
+  'json', 'json5', 'jsonc', 'xml', 'gradle', 'kt', 'kts', 'toml',
+  'java', 'lua', 'py', 'txt', 'md', 'mdx',
+  'properties', 'yaml', 'yml', 'svg', 'sh', 'bat', 'env',
+  'ini', 'conf', 'config', 'pro', 'plist', 'strings', 'xcconfig',
+  'csv', 'sql', 'dart', 'swift', 'm', 'mm', 'c', 'h', 'cc', 'cpp',
+  'hpp', 'cs', 'go', 'rs', 'rb', 'php', 'graphql', 'gql', 'ps1',
+  'webmanifest', 'lock', 'lockfile', 'gitignore', 'gitattributes',
+  'gitmodules', 'npmrc', 'nvmrc', 'editorconfig', 'dockerignore'
 ];
+
+// Extensionless project files must remain text too. Gradle's gradlew script
+// is essential when importing a native Android project.
+const TEXT_FILE_NAMES = new Set([
+  'gradlew', 'makefile', 'dockerfile', 'procfile', 'license', 'notice',
+  'readme', 'gemfile', 'podfile', 'brewfile', 'justfile',
+  '.gitignore', '.gitattributes', '.gitmodules', '.npmrc', '.nvmrc',
+  '.editorconfig', '.dockerignore'
+]);
 
 /**
  * Android string kaynağı (strings.xml) için metni güvenli hale getirir:
@@ -26,34 +42,51 @@ export function escapeAndroidString(value: string): string {
 }
 
 export function isTextFile(fileName: string): boolean {
-  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  const baseName = fileName.replace(/\\/g, '/').split('/').pop()?.toLowerCase() || '';
+  if (TEXT_FILE_NAMES.has(baseName)) return true;
+  const ext = baseName.split('.').pop() || '';
   return TEXT_EXTENSIONS.includes(ext);
 }
 
 export function getMimeType(fileName: string): string {
-  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  const baseName = fileName.replace(/\\/g, '/').split('/').pop()?.toLowerCase() || '';
+  const ext = baseName.split('.').pop() || '';
   const map: Record<string, string> = {
     html: 'text/html',
     htm: 'text/html',
     css: 'text/css',
+    scss: 'text/x-scss',
+    sass: 'text/x-sass',
+    less: 'text/x-less',
     js: 'application/javascript',
+    mjs: 'application/javascript',
+    cjs: 'application/javascript',
     ts: 'text/typescript',
+    tsx: 'text/typescript',
     json: 'application/json',
+    json5: 'application/json5',
+    jsonc: 'application/json',
     xml: 'application/xml',
     gradle: 'text/x-groovy',
-    java: 'text/x-java-source',
     kt: 'text/x-kotlin',
+    kts: 'text/x-kotlin',
+    toml: 'application/toml',
+    java: 'text/x-java-source',
     lua: 'text/x-lua',
     py: 'text/x-python',
-    txt: 'text/plain',
+    sh: 'text/x-shellscript',
+    csv: 'text/csv',
     svg: 'image/svg+xml',
     png: 'image/png',
     jpg: 'image/jpeg',
     jpeg: 'image/jpeg',
     webp: 'image/webp',
-    zip: 'application/zip'
+    gif: 'image/gif',
+    ico: 'image/x-icon',
+    zip: 'application/zip',
+    webmanifest: 'application/manifest+json'
   };
-  return map[ext] || 'application/octet-stream';
+  return map[ext] || (isTextFile(baseName) ? 'text/plain' : 'application/octet-stream');
 }
 
 export async function readBrowserFile(file: File, relativePath?: string): Promise<ProjectFile> {
@@ -106,12 +139,27 @@ export async function extractZipArchive(zipFile: File): Promise<ProjectFile[]> {
     const zipEntry = loadedZip.files[entryPath];
     if (zipEntry.dir) continue; // Skip directory markers
 
-    // Ignore MacOS metadata and hidden git files
-    if (entryPath.includes('__MACOSX') || entryPath.includes('.DS_Store')) {
+    // Validate the original ZIP path before using JSZip's normalized path.
+    const originalPath = String((zipEntry as any).unsafeOriginalName || entryPath).replace(/\\/g, '/');
+    if (
+      !originalPath ||
+      originalPath.startsWith('/') ||
+      /^[a-z]:\//i.test(originalPath) ||
+      originalPath.split('/').some(part => part === '..')
+    ) {
+      throw new Error(`ZIP arşivinde güvenli olmayan dosya yolu bulundu: ${originalPath || entryPath}`);
+    }
+
+    const safePath = originalPath.split('/').filter(part => part && part !== '.').join('/');
+    if (!safePath) continue;
+
+    // Ignore OS metadata and repository history, but keep .github workflows.
+    const pathParts = safePath.split('/');
+    if (pathParts.includes('__MACOSX') || pathParts.includes('.DS_Store') || pathParts.includes('.git')) {
       continue;
     }
 
-    const fileName = entryPath.split('/').pop() || entryPath;
+    const fileName = pathParts[pathParts.length - 1];
     const isText = isTextFile(fileName);
 
     if (isText) {
@@ -119,7 +167,7 @@ export async function extractZipArchive(zipFile: File): Promise<ProjectFile[]> {
       extractedFiles.push({
         id: `f_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         name: fileName,
-        path: entryPath.replace(/^[\\/]/, ''),
+        path: safePath,
         size: textContent.length,
         type: getMimeType(fileName),
         content: textContent,
@@ -132,7 +180,7 @@ export async function extractZipArchive(zipFile: File): Promise<ProjectFile[]> {
       extractedFiles.push({
         id: `f_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         name: fileName,
-        path: entryPath.replace(/^[\\/]/, ''),
+        path: safePath,
         size: Math.round(base64Content.length * 0.75),
         type: mime,
         content: `data:${mime};base64,${base64Content}`,
