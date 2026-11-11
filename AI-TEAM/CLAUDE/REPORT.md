@@ -2,7 +2,7 @@
 
 **Rol:** Arayüz ve kullanıcı deneyimi (README → "AI çalışma ekibi ve görev paylaşımı").
 **Dal:** `claude/mobile-ui-consistency` · **PR:** [#2](https://github.com/mm2vault/Apk-Studio/pull/2)
-**Son güncelleme:** 2026-11-11 · **Teslimat sırası:** 1
+**Son güncelleme:** 2026-11-11 · **Teslimat sırası:** 1 · **Durum:** PR #2 açık, CI başarılı, birleştirme ChatGPT incelemesini bekliyor
 
 > Bu dosya her çalışmanın sonunda güncellenir. Yalnızca doğrulanmış olanlar "tamamlandı" sayılır;
 > cihazda veya CI'da görülmeyen hiçbir sonuç başarılı olarak yazılmaz.
@@ -17,6 +17,8 @@
 | 2 | [`34e6ff1`](https://github.com/mm2vault/Apk-Studio/commit/34e6ff1) | Depolama hatası uyarısı, editör satır numarası hizası, dosya yöneticisi bildirimleri |
 | 3 | [`6729d7e`](https://github.com/mm2vault/Apk-Studio/commit/6729d7e) | Ayarlar doğrulaması, `strings.xml` kaçışı |
 | 4 | [`06365c6`](https://github.com/mm2vault/Apk-Studio/commit/06365c6) | `main` ile birleştirme (MobileNav çakışması çözüldü) |
+| 5 | [`29a40cc`](https://github.com/mm2vault/Apk-Studio/commit/29a40cc) | Bu rapor eklendi |
+| 6 | Bu raporu güncelleyen birleştirme commit'i (PR'ın en son commit'i) | `main`'deki `AI-TEAM/` belgeleriyle birleştirme (çakışma yok) ve rapor güncellemesi |
 
 PR: https://github.com/mm2vault/Apk-Studio/pull/2
 
@@ -81,7 +83,8 @@ GitHub Actions iş akışlarına **dokunulmadı**.
 | Kontrol | Sonuç |
 |---------|-------|
 | GitHub Actions `frontend` (`npm run lint` + `npm run build`), PR #2, `6729d7e` | **Başarılı** — [çalışma](https://github.com/mm2vault/Apk-Studio/actions/runs/42932593874) |
-| Aynı kontrol, birleştirme commit'i `06365c6` | **Henüz görülmedi** — push sonrası PR'daki sonuç beklenmeli |
+| Aynı kontrol, rapor dahil PR başı `29a40cc` | **Başarılı** — [çalışma 42933408043](https://github.com/mm2vault/Apk-Studio/actions/runs/42933408043) (`06365c6` birleştirmesini de kapsar) |
+| Aynı kontrol, `main`'deki son `AI-TEAM/` belgeleriyle birleştirmeden sonra | **Henüz görülmedi** — bu birleştirme yalnızca belge dosyası getirdi; PR'daki sonuç beklenmeli |
 | Yerelde `npm run lint` / `npm run build` | **Çalıştırılamadı** (oturumda paket kurulumu kapalı); yalnızca sözdizimi ve tanımsız isim denetimi yapıldı, hata çıkmadı |
 | `escapeAndroidString` | Örnek adlarla Node'da denendi (`Tom & Jerry`, `Ali's App`, `<b>x</b>`, `@home`, tırnak) — çıktılar beklenen gibi |
 | Gerçek cihaz / tarayıcı denemesi | **Yapılmadı** — cihazda doğrulanmadı |
@@ -98,7 +101,19 @@ GitHub Actions iş akışlarına **dokunulmadı**.
 4. **Dokunulmayan alanlar:** `server.ts`, `.github/workflows/*`, `buildService.ts`, `typeDetector.ts`, Capacitor ayarları.
 5. **Doğrulama:** Birleştirmeden sonra `npm run lint` ve `npm run build` çalıştırın; telefon genişliğinde (≈360px) alt gezinme, klavye açılışı ve editörde satır numarası hizasını cihazda deneyin.
 
+### ChatGPT'nin entegrasyon kontrol listesine karşılık (`AI-TEAM/CHATGPT/REPORT.md` §3)
+
+| Madde | Durum |
+|-------|-------|
+| PR #2'nin son CI sonucu başarılı olmalı | Başarılı (`29a40cc`); son belge birleştirmesi sonrası yeniden görülmeli |
+| Servis değişiklikleri ve Android XML kaçış mantığı incelenmeli | Bekliyor — ChatGPT'ye bırakıldı; incelenecek yerler §8'de |
+| Birleştirmeden sonra `main` CI ve APK derlemesi çalışmalı | Birleştirme sonrası ChatGPT'de |
+| Yeni APK asset'i ve indirme bağlantısı doğrulanmalı | ChatGPT'de; `v0.1.14` PR #2 öncesi sürümdür |
+| 360px, klavye, safe-area, editör kaydırması ve dosya yüklemenin Android'de denenmesi | **Yapılmadı** — cihazda doğrulanmadı; bu raporun §6 maddesi |
+
 ## 9. Sonraki öneriler
+
+0. Grok'un önerilerinden (`AI-TEAM/GROK/REPORT.md`) UI alanıma girenler — mobil kod yardımcı çubuğu geliştirmeleri ve bul/değiştir — PR #2 birleştikten sonra ayrı, küçük bir PR olarak ele alınabilir; henüz başlanmadı.
 
 1. PR #2'yi CI yeşil olduktan sonra birleştirin; Panel/Dosyalar/Ayarlar başlıklarını `PageHeader`'a taşıyan küçük bir ikinci PR açılabilir.
 2. `confirm()` yerine ortak bir onay penceresi bileşeni (`ConfirmDialog`).
