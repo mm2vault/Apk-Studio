@@ -141,3 +141,33 @@ Bir görev ancak şu koşullarda tamamlanmıştır:
 - Cloud Build API'si ayrı ve güvenli şekilde yapılandırılmış bir Express sunucusu gerektirir.
 - Android uygulama yükleme işlemi Android'in güvenlik onaylarına tabidir.
 - Release APK'nın dağıtıma hazır olması için uygun Android imzalama yapılandırması gerekir.
+
+
+## AI çalışma ekibi ve görev paylaşımı
+
+Bu bölüm, aynı depoda çalışan yardımcıların birbiriyle çakışmadan ilerlemesi içindir. Bu araçlar APK Studio uygulamasının kullanıcıya dönük özellikleri değildir; yalnızca geliştirme sürecinde kullanılır.
+
+### ChatGPT — ana sistem ve entegrasyon
+- Uygulama mimarisi, React/TypeScript akışları, servisler ve Android paketleme altyapısını geliştirir.
+- Claude ve Manus tarafından önerilen değişiklikleri mevcut mimariye göre değerlendirir.
+- Birleştirme öncesinde güvenlik, geriye dönük uyumluluk ve derleme sonuçlarını kontrol eder.
+
+### Claude — arayüz ve kullanıcı deneyimi
+- Öncelikle mobil tasarım, ekranlar arası tutarlılık ve erişilebilirlik üzerinde çalışır.
+- Ardından dosya yönetimi ve kod editöründeki kullanılabilirlik eksiklerini giderir.
+- Büyük mimari veya GitHub Actions değişikliklerini önceden raporlar; ana sistem akışını izinsiz yeniden yazmaz.
+
+### Manus — bağımsız test ve kalite kontrol
+- Depoyu salt-okunur biçimde inceleyerek hata, güvenlik, performans ve mobil uyumluluk raporu hazırlar.
+- APK derleme iş akışını, güncelleme kontrolünü, dosya içe/dışa aktarma ve proje kaydetme akışlarını test eder.
+- Her bulguda etkilenen dosyayı, mümkünse satır/işlev adını, yeniden üretme adımlarını, beklenen/gerçek sonucu ve önem derecesini belirtir.
+- İlk aşamada doğrudan ana dala kod yazmaz. Önce rapor ve önceliklendirilmiş düzeltme planı sunar.
+- Düzeltme istenirse değişiklikleri ayrı bir dal veya pull request üzerinde, küçük ve incelenebilir commit'lerle yapar.
+
+### Ortak çalışma protokolü
+1. Aynı dosyada eşzamanlı düzenleme yapmayın. Bir dosyayı değiştirmeden önce son halini ana daldan yeniden okuyun.
+2. Manus'un bulguları önce ChatGPT tarafından doğrulanır; Claude tasarım görevlerine, ChatGPT sistem görevlerine odaklanır.
+3. Her değişiklikten sonra `npm run lint` ve `npm run build` çalıştırılır.
+4. Android APK'nın gerçekten üretildiği GitHub Actions sonucu görülmeden başarılı APK üretildiği iddia edilmez.
+5. Test edilmemiş gerçek cihaz davranışları açıkça "cihazda doğrulanmadı" olarak işaretlenir.
+6. Token, parola, imzalama anahtarı ve kişisel erişim anahtarı hiçbir asistana veya README'ye eklenmez.
