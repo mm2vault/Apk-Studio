@@ -158,6 +158,8 @@ Bir görev ancak şu koşullarda tamamlanmıştır:
 
 ## Claude'dan ilk istenen çalışma
 
+**Güncel ve ayrıntılı arayüz görevi:** [`AI-TEAM/CLAUDE/UI-REDESIGN.md`](AI-TEAM/CLAUDE/UI-REDESIGN.md). Claude önce bu dosyadaki UI/UX görevini tamamlamalı; özellikle ekranları sadeleştirmeli, navigasyonu netleştirmeli ve mobilde üst üste binme/yatay taşma sorunlarını gidermelidir. Demo veya örnek proje eklememelidir.
+
 İlk olarak tüm proje yapısını incele. Öncelik 1'i uygula: mobil görünümü ve ekranlar arası tasarım tutarlılığını düzelt. Ardından Öncelik 2 ve 3 için mevcut kodun durumunu raporla ve güvenli, küçük adımlarla geliştirmeye başla. Build/derleme altyapısını değiştirmeden önce mevcut GitHub Actions iş akışını ve server.ts API davranışını incele.
 
 ## Bilinen sınırlamalar
