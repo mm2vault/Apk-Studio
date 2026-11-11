@@ -2,6 +2,7 @@ import { Project, AppConfig } from '../types/project';
 
 const STORAGE_KEY = 'apk_studio_mobile_projects_v1';
 const ACTIVE_PROJECT_KEY = 'apk_studio_active_project_id';
+export const STORAGE_ERROR_EVENT = 'apkstudio:storage-error';
 
 export const DEFAULT_CONFIG: AppConfig = {
   name: 'Yeni Uygulama',
@@ -311,11 +312,25 @@ export const StorageService = {
     }
   },
 
-  saveProjects(projects: Project[]): void {
+  /**
+   * Projeleri kaydeder. Başarısız olursa (ör. tarayıcı depolama kotası dolduğunda)
+   * false döner ve arayüzün gösterebilmesi için STORAGE_ERROR_EVENT olayını yayar.
+   */
+  saveProjects(projects: Project[]): boolean {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+      return true;
     } catch (err) {
       console.error('Failed to save projects to localStorage:', err);
+      const quota = err instanceof DOMException &&
+        (err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED');
+      const message = quota
+        ? 'Depolama alanı doldu; değişiklikler kaydedilemedi. Büyük dosyaları silin veya projeyi ZIP olarak dışa aktarın.'
+        : 'Değişiklikler cihaz depolamasına kaydedilemedi. Çalışmanızı ZIP olarak dışa aktarmanız önerilir.';
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(STORAGE_ERROR_EVENT, { detail: { message } }));
+      }
+      return false;
     }
   },
 
@@ -345,14 +360,22 @@ export const StorageService = {
   },
 
   getActiveProjectId(): string | null {
-    return localStorage.getItem(ACTIVE_PROJECT_KEY) || SAMPLE_WEB_PROJECT.id;
+    try {
+      return localStorage.getItem(ACTIVE_PROJECT_KEY) || SAMPLE_WEB_PROJECT.id;
+    } catch {
+      return SAMPLE_WEB_PROJECT.id;
+    }
   },
 
   setActiveProjectId(id: string | null): void {
-    if (id) {
-      localStorage.setItem(ACTIVE_PROJECT_KEY, id);
-    } else {
-      localStorage.removeItem(ACTIVE_PROJECT_KEY);
+    try {
+      if (id) {
+        localStorage.setItem(ACTIVE_PROJECT_KEY, id);
+      } else {
+        localStorage.removeItem(ACTIVE_PROJECT_KEY);
+      }
+    } catch (err) {
+      console.error('Failed to store active project id:', err);
     }
   }
 };

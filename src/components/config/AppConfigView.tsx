@@ -30,7 +30,30 @@ export const AppConfigView: React.FC<AppConfigViewProps> = ({
 
   // Validate package ID format
   const packageIdRegex = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/i;
-  const isPackageIdValid = packageIdRegex.test(config.packageId);
+  const JAVA_KEYWORDS = new Set([
+    'abstract', 'assert', 'boolean', 'break', 'byte', 'case', 'catch', 'char', 'class', 'const',
+    'continue', 'default', 'do', 'double', 'else', 'enum', 'extends', 'final', 'finally', 'float',
+    'for', 'goto', 'if', 'implements', 'import', 'instanceof', 'int', 'interface', 'long', 'native',
+    'new', 'package', 'private', 'protected', 'public', 'return', 'short', 'static', 'strictfp',
+    'super', 'switch', 'synchronized', 'this', 'throw', 'throws', 'transient', 'try', 'void',
+    'volatile', 'while', 'true', 'false', 'null'
+  ]);
+  const packageIdKeyword = config.packageId.split('.').find(part => JAVA_KEYWORDS.has(part.toLowerCase()));
+  const isPackageIdValid = packageIdRegex.test(config.packageId) && !packageIdKeyword;
+
+  // Derleme başlamadan önce alanın yanında gösterilen doğrulama hataları
+  const nameError = !config.name.trim()
+    ? 'Uygulama adı boş olamaz.'
+    : config.name.trim().length > 50 ? 'Uygulama adı en fazla 50 karakter olmalı.' : '';
+  const versionNameError = !config.versionName.trim()
+    ? 'Versiyon adı boş olamaz.'
+    : !/^[0-9A-Za-z._+-]+$/.test(config.versionName.trim())
+      ? 'Yalnızca harf, rakam ve . _ + - karakterleri kullanılabilir.' : '';
+  const versionCodeError = !Number.isInteger(config.versionCode) || config.versionCode < 1
+    ? 'Versiyon kodu 1 veya daha büyük bir tam sayı olmalı.' : '';
+  const sdkError = config.minSdk > config.targetSdk
+    ? 'Minimum SDK, hedef SDK değerinden büyük olamaz.' : '';
+  const hasErrors = Boolean(nameError || versionNameError || versionCodeError || sdkError || !isPackageIdValid);
 
   const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -87,6 +110,7 @@ export const AppConfigView: React.FC<AppConfigViewProps> = ({
   };
 
   const handleSave = () => {
+    if (hasErrors) return;
     onUpdateProject({
       ...project,
       name: config.name,
@@ -109,7 +133,7 @@ export const AppConfigView: React.FC<AppConfigViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-24 max-w-5xl mx-auto px-4 pt-2">
+    <div className="page-shell space-y-6 max-w-5xl mx-auto w-full px-4 pt-4">
       {/* Top Title & Save Button */}
       <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-4">
         <div>
@@ -124,7 +148,9 @@ export const AppConfigView: React.FC<AppConfigViewProps> = ({
 
         <button
           onClick={handleSave}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-lg shadow-purple-900/40 active:scale-95 transition-all"
+          disabled={hasErrors}
+          title={hasErrors ? 'Önce işaretli alanlardaki hataları düzeltin' : undefined}
+          className="flex items-center gap-1.5 min-h-10 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-lg shadow-purple-900/40 active:scale-95 transition-all"
         >
           {savedSuccess ? (
             <>
@@ -158,9 +184,10 @@ export const AppConfigView: React.FC<AppConfigViewProps> = ({
                 type="text"
                 value={config.name}
                 onChange={(e) => setConfig({ ...config, name: e.target.value })}
-                className="w-full bg-[#12141f] border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                className={`w-full bg-[#12141f] border rounded-xl px-3 py-2 text-xs text-white focus:outline-none ${nameError ? 'border-red-500/50 focus:border-red-500' : 'border-white/10 focus:border-purple-500'}`}
                 placeholder="Örn: My Awesome App"
               />
+              {nameError && <p className="text-[10px] text-red-400 mt-1">{nameError}</p>}
             </div>
 
             <div>
@@ -179,7 +206,9 @@ export const AppConfigView: React.FC<AppConfigViewProps> = ({
               {!isPackageIdValid && (
                 <span className="text-[10px] text-red-400 flex items-center gap-1 mt-1 font-mono">
                   <AlertCircle className="w-3 h-3" />
-                  Geçersiz paket adı. Ters alan adı formatı gereklidir (en az 2 parça, harfle başlayan).
+                  {packageIdKeyword
+                    ? `"${packageIdKeyword}" Java'da ayrılmış bir kelime; paket adında kullanılamaz.`
+                    : 'Geçersiz paket adı. Ters alan adı formatı gereklidir (en az 2 parça, harfle başlayan).'}
                 </span>
               )}
             </div>
@@ -193,9 +222,10 @@ export const AppConfigView: React.FC<AppConfigViewProps> = ({
                   type="text"
                   value={config.versionName}
                   onChange={(e) => setConfig({ ...config, versionName: e.target.value })}
-                  className="w-full bg-[#12141f] border border-white/10 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+                  className={`w-full bg-[#12141f] border rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none ${versionNameError ? 'border-red-500/50 focus:border-red-500' : 'border-white/10 focus:border-purple-500'}`}
                   placeholder="1.0.0"
                 />
+                {versionNameError && <p className="text-[10px] text-red-400 mt-1">{versionNameError}</p>}
               </div>
 
               <div>
@@ -206,9 +236,10 @@ export const AppConfigView: React.FC<AppConfigViewProps> = ({
                   type="number"
                   min="1"
                   value={config.versionCode}
-                  onChange={(e) => setConfig({ ...config, versionCode: parseInt(e.target.value, 10) || 1 })}
-                  className="w-full bg-[#12141f] border border-white/10 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+                  onChange={(e) => setConfig({ ...config, versionCode: parseInt(e.target.value, 10) || 0 })}
+                  className={`w-full bg-[#12141f] border rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none ${versionCodeError ? 'border-red-500/50 focus:border-red-500' : 'border-white/10 focus:border-purple-500'}`}
                 />
+                {versionCodeError && <p className="text-[10px] text-red-400 mt-1">{versionCodeError}</p>}
               </div>
             </div>
           </div>
@@ -252,6 +283,7 @@ export const AppConfigView: React.FC<AppConfigViewProps> = ({
                 </select>
               </div>
             </div>
+            {sdkError && <p className="text-[10px] text-red-400">{sdkError}</p>}
 
             <div className="grid grid-cols-2 gap-3">
               <div>

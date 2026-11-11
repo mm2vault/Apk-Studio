@@ -1,7 +1,24 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Layers, FolderTree, Code, Cpu, MoreHorizontal, Settings, Download, RefreshCw, X } from 'lucide-react';
 
 interface MobileNavProps { activeTab: string; setActiveTab: (tab: string) => void; }
+
+/**
+ * Ekran klavyesi açıkken görünür alan (visualViewport) belirgin biçimde küçülür.
+ * Bu durumda alt gezinme gizlenir; böylece klavyenin üstünde yer kaplamaz.
+ */
+function useKeyboardOpen(): boolean {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setOpen(window.innerHeight - vv.height > 150);
+    update();
+    vv.addEventListener('resize', update);
+    return () => vv.removeEventListener('resize', update);
+  }, []);
+  return open;
+}
 
 const primaryTabs = [
   { id: 'dashboard', label: 'Panel', icon: Layers },
@@ -18,6 +35,8 @@ const extraTabs = [
 
 export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, setActiveTab }) => {
   const [moreOpen, setMoreOpen] = useState(false);
+  const keyboardOpen = useKeyboardOpen();
+  useEffect(() => { if (keyboardOpen) setMoreOpen(false); }, [keyboardOpen]);
   const isExtraTabActive = extraTabs.some(tab => tab.id === activeTab);
   const MoreIcon = moreOpen ? X : MoreHorizontal;
   const selectTab = (tab: string) => { setActiveTab(tab); setMoreOpen(false); };
@@ -40,7 +59,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, setActiveTab })
           })}
         </div>
       )}
-      <nav aria-label="Ana gezinme" className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-[#0c0d14]/95 pb-safe backdrop-blur-xl">
+      <nav aria-label="Ana gezinme" className={`md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-[#0c0d14]/95 pb-safe backdrop-blur-xl ${keyboardOpen ? 'nav-hidden' : ''}`}>
         <div className="grid h-[4.25rem] grid-cols-5 items-center px-2">
           {primaryTabs.map(tab => {
             const Icon = tab.icon;

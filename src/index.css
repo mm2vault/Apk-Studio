@@ -61,10 +61,52 @@
 
 /* Mobile safe area padding utilities */
 .pb-safe {
-  padding-bottom: env(safe-area-inset-bottom, 1rem);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .pt-safe {
-  padding-top: env(safe-area-inset-top, 0.5rem);
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Ortak sayfa kabuğu: alt gezinme çubuğu (4rem) + güvenli alan kadar boşluk bırakır. */
+.page-shell {
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 768px) {
+  .page-shell {
+    padding-top: 1.5rem;
+    padding-bottom: 3rem;
+  }
+}
+
+/* Dokunma hedefleri: en az 40px. */
+.tap-target {
+  min-height: 40px;
+  min-width: 40px;
+}
+
+/* Klavye açıkken alt gezinme gizlenir (MobileNav ayarlar). */
+.nav-hidden {
+  transform: translateY(100%);
+  pointer-events: none;
+}
+
+/* Hareket azaltma tercihine saygı. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Klavye odağı görünür olsun. */
+:focus-visible {
+  outline: 2px solid rgba(168, 85, 247, 0.8);
+  outline-offset: 2px;
+}
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: none;
 }
 
 
@@ -122,19 +164,9 @@ button, a, label {
     overflow-x: clip;
   }
 
-  main > div {
-    padding-left: 12px;
-    padding-right: 12px;
-  }
-
   .glass-panel, .glass-card {
     min-width: 0;
     overflow-wrap: anywhere;
-  }
-
-  .glass-panel {
-    padding-left: 14px;
-    padding-right: 14px;
   }
 
   /* Keep long package names, paths and generated code inside their cards. */
@@ -145,7 +177,8 @@ button, a, label {
 
   /* Give the bottom navigation room for safe-area devices. */
   nav.fixed.bottom-0 {
-    padding-bottom: max(env(safe-area-inset-bottom), 6px);
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 4px);
+    transition: transform 0.15s ease;
   }
 
   nav.fixed.bottom-0 button {
@@ -164,6 +197,6 @@ button, a, label {
 
 @media (max-width: 360px) {
   nav.fixed.bottom-0 button span {
-    font-size: 8px;
+    font-size: 9px;
   }
 }

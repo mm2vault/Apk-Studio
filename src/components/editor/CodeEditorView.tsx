@@ -11,6 +11,7 @@ import {
   Maximize2,
   Minimize2
 } from 'lucide-react';
+import { PageContainer, EmptyState } from '../ui/Page';
 import { Project, ProjectFile } from '../../types/project';
 import { formatFileSize } from '../../services/typeDetector';
 
@@ -41,6 +42,7 @@ export const CodeEditorView: React.FC<CodeEditorViewProps> = ({
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const gutterRef = useRef<HTMLPreElement>(null);
 
   // Sync content when active file changes
   useEffect(() => {
@@ -86,6 +88,18 @@ export const CodeEditorView: React.FC<CodeEditorViewProps> = ({
     });
   };
 
+  // Satır numaraları metin kutusuyla birlikte kaysın
+  const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+    if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop;
+  };
+
+  // Tab tuşu odağı kaçırmak yerine iki boşluk girintisi eklesin
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== 'Tab') return;
+    e.preventDefault();
+    insertSymbol('  ');
+  };
+
   // Insert symbol helper for mobile virtual keyboards
   const insertSymbol = (sym: string) => {
     if (!textareaRef.current) return;
@@ -114,23 +128,25 @@ export const CodeEditorView: React.FC<CodeEditorViewProps> = ({
   // Quick Mobile symbols
   const mobileSymbols = ['{', '}', '(', ')', '[', ']', '<', '>', '/', '=', '"', "'", ';', ':', '$', '.', '_', '-', '+', '\t'];
 
-  const lines = editorContent.split('\n');
-  const lineCount = lines.length;
+  const lineCount = editorContent.split('\n').length;
+  const lineNumbers = Array.from({ length: lineCount }, (_, i) => i + 1).join('\n');
 
   if (textFiles.length === 0) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-16 text-center text-slate-400">
-        <FileCode className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-        <h3 className="text-base font-bold text-white">Düzenlenebilir Metin Dosyası Bulunamadı</h3>
-        <p className="text-xs text-slate-500 mt-1">
-          Dosya Yöneticisi sekmesinden yeni bir dosya (.html, .js, .lua, .py) oluşturabilir veya yükleyebilirsiniz.
-        </p>
-      </div>
+      <PageContainer width="xl">
+        <EmptyState
+          icon={<FileCode className="w-12 h-12" />}
+          title="Düzenlenebilir Metin Dosyası Bulunamadı"
+          description="Dosya Yöneticisi sekmesinden yeni bir dosya (.html, .js, .lua, .py) oluşturabilir veya yükleyebilirsiniz."
+        />
+      </PageContainer>
     );
   }
 
   return (
-    <div className={`space-y-2 pb-24 max-w-7xl mx-auto px-2 sm:px-4 pt-1 ${isFullscreen ? 'fixed inset-0 z-50 bg-[#08090d] p-4 pb-4 h-screen' : ''}`}>
+    <div className={isFullscreen
+      ? 'fixed inset-0 z-50 bg-[#08090d] p-3 h-dvh overflow-y-auto space-y-2'
+      : 'page-shell space-y-2 max-w-7xl mx-auto w-full px-2 sm:px-4 pt-2'}>
       {/* File Tabs Strip */}
       <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 border-b border-white/10">
         <div className="flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none">
@@ -234,15 +250,13 @@ export const CodeEditorView: React.FC<CodeEditorViewProps> = ({
       {/* Editor Body */}
       <div className="glass-panel rounded-2xl border border-white/10 overflow-hidden flex flex-col shadow-2xl">
         {/* Editor Main Container */}
-        <div className="relative flex flex-1 min-h-[460px] sm:min-h-[520px] bg-[#08090f]">
-          {/* Line Numbers Gutter */}
-          <div className="w-10 sm:w-12 bg-[#06070b] select-none text-right pr-2 pt-3 font-mono text-[11px] text-slate-600 border-r border-white/5 shrink-0 overflow-hidden leading-relaxed">
-            {Array.from({ length: Math.min(lineCount, 500) }, (_, i) => (
-              <div key={i + 1} className="h-5">
-                {i + 1}
-              </div>
-            ))}
-          </div>
+        <div className={`relative flex bg-[#08090f] ${isFullscreen ? 'h-[calc(100dvh-210px)] min-h-[240px]' : 'h-[55dvh] min-h-[320px] max-h-[640px]'}`}>
+          {/* Line Numbers Gutter: metin kutusuyla aynı yazı boyutu ve satır yüksekliği, kaydırma eşlenir */}
+          <pre
+            ref={gutterRef}
+            aria-hidden="true"
+            className="w-10 sm:w-12 bg-[#06070b] select-none text-right pr-2 py-3 font-mono text-xs sm:text-[13px] leading-relaxed text-slate-600 border-r border-white/5 shrink-0 overflow-hidden m-0"
+          >{lineNumbers}</pre>
 
           {/* Textarea Area */}
           <textarea
@@ -252,11 +266,14 @@ export const CodeEditorView: React.FC<CodeEditorViewProps> = ({
             onSelect={handleSelect}
             onKeyUp={handleSelect}
             onClick={handleSelect}
+            onScroll={handleScroll}
+            onKeyDown={handleKeyDown}
             spellCheck={false}
             autoCapitalize="none"
             autoComplete="off"
             autoCorrect="off"
-            className="w-full h-full min-h-[460px] sm:min-h-[520px] bg-transparent text-slate-100 font-mono text-xs sm:text-[13px] leading-relaxed p-3 focus:outline-none resize-none overflow-y-auto whitespace-pre selection:bg-purple-600 selection:text-white"
+            aria-label={`${currentFile?.name ?? 'Dosya'} içeriği`}
+            className="w-full h-full bg-transparent text-slate-100 font-mono text-xs sm:text-[13px] leading-relaxed p-3 focus:outline-none resize-none overflow-auto whitespace-pre selection:bg-purple-600 selection:text-white"
             placeholder="Kodunuzu buraya yazın..."
           />
         </div>
@@ -271,7 +288,7 @@ export const CodeEditorView: React.FC<CodeEditorViewProps> = ({
               key={idx}
               type="button"
               onClick={() => insertSymbol(sym === '\t' ? '  ' : sym)}
-              className="min-w-[32px] h-7 px-2 rounded-md bg-[#161928] hover:bg-purple-600/30 text-purple-300 font-mono text-xs font-semibold flex items-center justify-center border border-white/5 active:scale-90 transition-all shrink-0"
+              className="min-w-[40px] h-10 px-2 rounded-md bg-[#161928] hover:bg-purple-600/30 text-purple-300 font-mono text-sm font-semibold flex items-center justify-center border border-white/5 active:scale-90 transition-all shrink-0"
             >
               {sym === '\t' ? 'Tab' : sym}
             </button>

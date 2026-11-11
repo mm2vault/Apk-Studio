@@ -25,8 +25,8 @@ export const Header: React.FC<HeaderProps> = ({
   ];
 
   return (
-    <header className="sticky top-0 z-30 w-full border-b border-white/10 bg-[#08090d]/90 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+    <header className="sticky top-0 z-30 w-full border-b border-white/10 bg-[#08090d]/90 backdrop-blur-md pt-safe">
+      <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 shrink-0">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-cyan-400 p-[1px] shadow-lg shadow-purple-900/30 flex items-center justify-center">
             <div className="w-full h-full bg-[#0c0d14] rounded-[11px] flex items-center justify-center">
@@ -56,13 +56,14 @@ export const Header: React.FC<HeaderProps> = ({
           {projects.length > 0 && (
             <div className="relative">
               <select value={currentProject?.id || ''} onChange={(e) => onSelectProject(e.target.value)}
-                className="bg-[#12141f] text-slate-200 text-xs font-mono font-medium rounded-lg px-2.5 py-1.5 border border-white/10 focus:outline-none focus:border-purple-500 max-w-[130px] sm:max-w-[180px] truncate cursor-pointer">
+                aria-label="Aktif proje"
+                className="bg-[#12141f] text-slate-200 text-xs font-mono font-medium rounded-lg px-2.5 min-h-10 border border-white/10 focus:outline-none focus:border-purple-500 max-w-[130px] sm:max-w-[180px] truncate cursor-pointer">
                 {projects.map((p) => <option key={p.id} value={p.id} className="bg-[#12141f] text-slate-200">{p.name}</option>)}
               </select>
             </div>
           )}
-          <button onClick={onCreateProjectClick}
-            className="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-all shadow-md shadow-purple-900/40 active:scale-95 whitespace-nowrap">
+          <button onClick={onCreateProjectClick} aria-label="Yeni proje"
+            className="flex items-center justify-center gap-1.5 min-h-10 min-w-10 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold px-3 rounded-lg transition-all shadow-md shadow-purple-900/40 active:scale-95 whitespace-nowrap">
             <Plus className="w-3.5 h-3.5" /><span className="hidden sm:inline">Yeni Proje</span>
           </button>
         </div>
