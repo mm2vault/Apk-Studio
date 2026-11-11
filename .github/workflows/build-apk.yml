@@ -140,3 +140,37 @@ jobs:
           gh release create "v0.1.${GITHUB_RUN_NUMBER}" "${APK_PATH}#apk-studio-release.apk" \
             --title "APK Studio v0.1.${GITHUB_RUN_NUMBER}" \
             --notes "Signed APK Studio release. Android versionCode: ${GITHUB_RUN_NUMBER}. Install over an existing copy only when signed with the same release keystore."
+
+      - name: Update public update manifest
+        if: ${{ inputs.build_variant == 'release' }}
+        env:
+          RELEASE_TAG: v0.1.${{ github.run_number }}
+          RELEASE_URL: https://github.com/${{ github.repository }}/releases/tag/v0.1.${{ github.run_number }}
+          APK_URL: https://github.com/${{ github.repository }}/releases/download/v0.1.${{ github.run_number }}/apk-studio-release.apk
+        run: |
+          mkdir -p public
+          python3 - <<'PY'
+          import json, os
+          tag = os.environ['RELEASE_TAG']
+          data = {
+              'tag_name': tag,
+              'name': f'APK Studio {tag}',
+              'body': 'Signed Release APK. Android versionCode: ' + os.environ['GITHUB_RUN_NUMBER'] + '.',
+              'html_url': os.environ['RELEASE_URL'],
+              'published_at': os.environ['GITHUB_RUN_ID'],
+              'assets': [{'name': 'apk-studio-release.apk', 'browser_download_url': os.environ['APK_URL'], 'size': 0}],
+              'prerelease': False,
+              'draft': False
+          }
+          # Use a valid ISO timestamp; the manifest is only a fallback source.
+          from datetime import datetime, timezone
+          data['published_at'] = datetime.now(timezone.utc).isoformat()
+          with open('public/update-manifest.json', 'w', encoding='utf-8') as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
+              f.write('\n')
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/update-manifest.json
+          git commit -m "chore: update release manifest [skip ci]" || exit 0
+          git push
