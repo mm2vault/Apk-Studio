@@ -4,7 +4,7 @@ import {
   Hammer, Loader2, RefreshCw, Server, Smartphone, Terminal, XCircle
 } from 'lucide-react';
 import { PageContainer, PageHeader, Notice } from '../ui/Page';
-import { Project, ToolchainStatus, ValidationResult } from '../../types/project';
+import { BuildLog, Project, ToolchainStatus, ValidationResult } from '../../types/project';
 import { BuildApiService } from '../../services/buildService';
 import { triggerDownload } from '../../services/fileService';
 
@@ -23,7 +23,7 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
   const [loadingCheck, setLoadingCheck] = useState(true);
   const [localBuilding, setLocalBuilding] = useState(false);
   const [cloudBuilding, setCloudBuilding] = useState(false);
-  const [message, setMessage] = useState<{ kind: 'success' | 'error' | 'info'; text: string; url?: string } | null>(null);
+  const [message, setMessage] = useState<{ kind: 'success' | 'error' | 'info'; text: string; url?: string } | null>(null);\n  const [buildLogs, setBuildLogs] = useState<BuildLog[]>([]);
 
   const refreshStatus = async () => {
     setLoadingCheck(true);
@@ -172,6 +172,23 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
         {validation?.suggestions.map((item, index) => <p key={index} className="text-xs text-cyan-300">{item}</p>)}
         {validation?.valid && <p className="flex gap-2 text-xs text-emerald-300"><CheckCircle2 className="w-3.5 h-3.5" />Temel proje kontrolleri başarılı. Bu, derlemenin kesin başarılı olacağı anlamına gelmez.</p>}
       </section>
+
+      {buildLogs.length > 0 && (
+        <section className="glass-panel rounded-2xl border border-white/10 p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2"><Terminal className="w-4 h-4 text-cyan-300" /> Yerel Derleme Günlükleri</h3>
+            <span className="text-[10px] text-slate-500">{buildLogs.length} satır</span>
+          </div>
+          <div className="max-h-72 overflow-y-auto rounded-xl bg-[#080a10] border border-white/5 p-3 space-y-1" role="log" aria-label="Gradle derleme günlükleri">
+            {buildLogs.map(log => (
+              <div key={log.id} className="font-mono text-[10px] leading-relaxed break-words">
+                <span className="text-slate-600 mr-2">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                <span className={log.level === 'error' ? 'text-rose-300' : log.level === 'warn' ? 'text-amber-300' : 'text-slate-300'}>{log.message}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="text-[10px] text-slate-500 leading-relaxed">
         <Server className="w-3 h-3 inline mr-1" />
