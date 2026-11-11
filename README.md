@@ -21,6 +21,31 @@ Kullanıcıların özellikle telefondan proje dosyalarını içe aktarması, kod
 
 Debug APK test amaçlıdır. Release APK imzalama anahtarları ayarlanmamışsa imzasız olabilir ve Play Store'a yüklenmeye hazır değildir.
 
+## Debug ve imzalı Release APK
+
+- Depoya `main` dalına push yapıldığında otomatik olarak Debug APK derlenir.
+- Release APK için Actions > **APK Studio - Build Android APK** > **Run workflow** yolunu açıp `release` seç.
+- Release derlemesi için aşağıdaki dört GitHub Actions secret'ı önceden tanımlanmalıdır:
+  - `ANDROID_KEYSTORE_BASE64`: JKS/keystore dosyasının Base64 içeriği
+  - `ANDROID_KEYSTORE_PASSWORD`: keystore parolası
+  - `ANDROID_KEY_ALIAS`: anahtar takma adı
+  - `ANDROID_KEY_PASSWORD`: anahtar parolası
+
+### İmzalama anahtarını bir kez oluşturma
+
+Güvenilir ve özel bir cihazda JDK `keytool` ile bir kez keystore oluştur. Örnek:
+
+```bash
+keytool -genkeypair -v -keystore apk-studio-release.jks -alias apkstudio -keyalg RSA -keysize 2048 -validity 10000
+base64 -w 0 apk-studio-release.jks
+```
+
+İkinci komutun çıktısını `ANDROID_KEYSTORE_BASE64` secret'ına koy; oluştururken belirlediğin parolayı ve alias'ı diğer üç secret'a gir. Android/Termux ortamında `base64 -w 0` desteklenmiyorsa `base64 apk-studio-release.jks | tr -d '\\n'` kullan.
+
+**ÇOK ÖNEMLİ:** Keystore dosyasını, parolaları veya Base64 çıktısını GitHub deposuna, kaynak koda, sohbete ya da APK içine koyma. Keystore dosyasının şifreli ve çevrimdışı bir yedeğini güvenli yerde sakla. Bu anahtar kaybolursa aynı uygulama kimliğiyle mevcut kullanıcılara normal güncelleme vermek mümkün olmayabilir. Anahtarı her sürümde yeniden oluşturma.
+
+İş akışı Android `versionCode` değerini GitHub Actions run numarasından üretir ve Release APK'yı aynı imzalama anahtarıyla imzalar. Böylece sonraki derlemelerde sürüm kodu artar. Debug ve Release APK farklı imzalandığı için birinden diğerine doğrudan güncelleme yapılamayabilir; Release kanalına geçerken eski Debug uygulamasını kaldırıp imzalı Release APK'yı kurmak gerekebilir.
+
 ## Geliştirme
 
 - Kurulum: npm install
