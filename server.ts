@@ -428,7 +428,7 @@ jobs:
       const outputLines = output.split(/\r?\n/).map(line => line.trim()).filter(Boolean).slice(-120);
       const logs = (outputLines.length ? outputLines : [String(error?.message || 'Gradle derlemesi başarısız oldu.')])
         .map((line, index) => ({
-          id: \`local-\${Date.now()}-\${index}\`,
+          id: 'local-' + Date.now() + '-' + index,
           timestamp,
           level: /\b(error|failed|exception)\b/i.test(line) ? 'error' as const
             : /\bwarn(ing)?\b/i.test(line) ? 'warn' as const : 'info' as const,
