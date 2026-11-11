@@ -4,6 +4,7 @@ import { PageContainer, PageHeader, Notice, LoadingState } from '../ui/Page';
 
 const CURRENT_VERSION = import.meta.env.VITE_APP_VERSION || '0.1.0';
 const RELEASES_API = 'https://api.github.com/repos/mm2vault/Apk-Studio/releases/latest';
+const RELEASES_FALLBACK = 'https://raw.githubusercontent.com/mm2vault/Apk-Studio/main/public/update-manifest.json';
 
 interface GitHubRelease {
   tag_name: string;
@@ -58,7 +59,16 @@ export const UpdateView: React.FC = () => {
       }
       setCheckedAt(new Date());
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Güncellemeler kontrol edilemedi.');
+      try {
+        const fallbackResponse = await fetch(`${RELEASES_FALLBACK}?t=${Date.now()}`, { cache: 'no-store' });
+        if (!fallbackResponse.ok) throw new Error('Yedek sürüm kaynağına ulaşılamadı.');
+        const fallback = await fallbackResponse.json() as GitHubRelease;
+        setRelease(fallback);
+        setCheckedAt(new Date());
+        setError('GitHub API geçici olarak yanıt vermedi; sürüm bilgisi yedek kaynaktan alındı.');
+      } catch {
+        setError(err instanceof Error ? err.message : 'Güncellemeler kontrol edilemedi.');
+      }
     } finally {
       setLoading(false);
     }
