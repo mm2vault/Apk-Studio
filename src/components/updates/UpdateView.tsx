@@ -69,7 +69,8 @@ export const UpdateView: React.FC = () => {
   }, [checkForUpdates]);
 
   const updateAvailable = release ? isNewer(release.tag_name, CURRENT_VERSION) : false;
-  const apkAsset = release?.assets.find(asset => asset.name.toLowerCase().endsWith('.apk'));
+  // Only offer the explicitly named signed release package, never a debug build.
+  const apkAsset = release?.assets.find(asset => asset.name.toLowerCase() === 'apk-studio-release.apk');
 
   return (
     <PageContainer width="md">
@@ -126,7 +127,9 @@ export const UpdateView: React.FC = () => {
                   <Download className="w-4 h-4" /> APK indir
                 </a>
               ) : (
-                <a href={release.html_url} className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm px-4 py-3" target="_blank" rel="noreferrer">
+                <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-sm text-amber-200" role="status">Bu sürümde kuruluma uygun imzalı Release APK bulunamadı. Debug APK güncelleme olarak sunulmaz.</div>
+              )}
+              <a href={release.html_url} className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm px-4 py-3" target="_blank" rel="noreferrer">
                   <ExternalLink className="w-4 h-4" /> Sürümü aç / dosyaları indir
                 </a>
               )}
