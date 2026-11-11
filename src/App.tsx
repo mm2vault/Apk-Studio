@@ -68,7 +68,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#08090d] text-slate-100 flex flex-col font-sans selection:bg-purple-600 selection:text-white">
+    <div className="min-h-dvh bg-[#08090d] text-slate-100 flex flex-col font-sans selection:bg-purple-600 selection:text-white">
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -77,7 +77,7 @@ export default function App() {
         onSelectProject={handleSelectProject}
         onCreateProjectClick={() => setIsCreateModalOpen(true)}
       />
-      <main className="flex-1 pb-16 md:pb-0">
+      <main className="flex-1">
         {activeTab === 'dashboard' && (
           <DashboardView
             projects={projects}

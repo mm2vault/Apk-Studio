@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Download, ExternalLink, RefreshCw, ShieldCheck, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Download, ExternalLink, RefreshCw, ShieldCheck, Sparkles, CheckCircle2 } from 'lucide-react';
+import { PageContainer, PageHeader, Notice, LoadingState } from '../ui/Page';
 
 const CURRENT_VERSION = import.meta.env.VITE_APP_VERSION || '0.1.0';
 const RELEASES_API = 'https://api.github.com/repos/mm2vault/Apk-Studio/releases/latest';
@@ -71,48 +72,38 @@ export const UpdateView: React.FC = () => {
   const apkAsset = release?.assets.find(asset => asset.name.toLowerCase().endsWith('.apk'));
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-cyan-400 text-xs font-semibold uppercase tracking-[0.2em] mb-2">
-            <Sparkles className="w-4 h-4" /> APK Studio
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white">Güncelleme Merkezi</h1>
-          <p className="text-sm text-slate-400 mt-2">Yeni sürümleri kontrol et, değişiklikleri oku ve yayınlanan dosyaları indir.</p>
-        </div>
-        <button onClick={() => void checkForUpdates()} disabled={loading} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-60 text-white text-sm font-semibold transition-colors">
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Kontrol ediliyor…' : 'Yeniden kontrol et'}
-        </button>
-      </div>
+    <PageContainer width="md">
+      <PageHeader
+        title="Güncelleme Merkezi"
+        description="Yeni sürümleri kontrol et, değişiklikleri oku ve yayınlanan dosyaları indir."
+        icon={<Sparkles className="w-5 h-5 text-cyan-400 shrink-0" />}
+        actions={
+          <button onClick={() => void checkForUpdates()} disabled={loading} className="tap-target inline-flex items-center justify-center gap-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-60 text-white text-xs font-semibold transition-colors" aria-label="Yeniden kontrol et">
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{loading ? 'Kontrol ediliyor…' : 'Yeniden kontrol et'}</span>
+          </button>
+        }
+      />
 
       <div className="grid sm:grid-cols-2 gap-4">
-        <div className="rounded-2xl border border-white/10 bg-[#11131d] p-5">
+        <div className="glass-panel rounded-2xl p-4">
           <p className="text-xs text-slate-500 uppercase tracking-wider">Yüklü sürüm</p>
-          <p className="text-2xl font-bold text-white mt-2">v{CURRENT_VERSION}</p>
+          <p className="text-xl font-bold text-white mt-2">v{CURRENT_VERSION}</p>
           <p className="text-xs text-slate-500 mt-2">Bu arayüzün sürüm numarası</p>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-[#11131d] p-5">
+        <div className="glass-panel rounded-2xl p-4">
           <p className="text-xs text-slate-500 uppercase tracking-wider">GitHub sürümü</p>
-          <p className="text-2xl font-bold text-white mt-2">{release?.tag_name || 'Kontrol bekleniyor'}</p>
+          <p className="text-xl font-bold text-white mt-2 break-words">{release?.tag_name || (loading ? 'Kontrol ediliyor…' : 'Bulunamadı')}</p>
           <p className="text-xs text-slate-500 mt-2">{checkedAt ? `Son kontrol: ${checkedAt.toLocaleString()}` : 'GitHub Releases üzerinden kontrol edilir'}</p>
         </div>
       </div>
 
-      {loading && !release && (
-        <div className="rounded-2xl border border-white/10 bg-[#11131d] p-6 flex items-center gap-3 text-slate-300">
-          <RefreshCw className="w-5 h-5 animate-spin text-cyan-400" /> GitHub sürümleri okunuyor…
-        </div>
-      )}
+      {loading && !release && <LoadingState label="GitHub sürümleri okunuyor…" />}
 
-      {error && (
-        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 flex gap-3 text-sm text-amber-200">
-          <AlertCircle className="w-5 h-5 shrink-0" /> <span>{error}</span>
-        </div>
-      )}
+      {error && <Notice kind="warning">{error}</Notice>}
 
       {release && (
-        <section className="rounded-2xl border border-white/10 bg-[#11131d] overflow-hidden">
+        <section className="glass-panel rounded-2xl overflow-hidden">
           <div className="p-5 sm:p-6 border-b border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <p className="text-xs text-slate-500 uppercase tracking-wider">En son kararlı sürüm</p>
@@ -147,10 +138,10 @@ export const UpdateView: React.FC = () => {
         </section>
       )}
 
-      <div className="rounded-2xl border border-white/10 bg-[#0d1018] p-4 flex gap-3 text-xs leading-5 text-slate-400">
+      <div className="glass-card rounded-2xl p-4 flex gap-3 text-xs leading-5 text-slate-400">
         <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
         <p>Güvenlik: Güncellemeler resmi mm2vault/Apk-Studio GitHub Releases sayfasından okunur. Web sürümü yayınlandıktan sonra sayfayı yenilemen gerekir. Android APK güncellemesi için aynı uygulama imzasıyla oluşturulmuş APK'yı indirip Android'in kurulum onayını vermelisin.</p>
       </div>
-    </div>
+    </PageContainer>
   );
 };

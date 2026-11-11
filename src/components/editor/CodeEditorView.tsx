@@ -11,6 +11,7 @@ import {
   Maximize2,
   Minimize2
 } from 'lucide-react';
+import { PageContainer, EmptyState } from '../ui/Page';
 import { Project, ProjectFile } from '../../types/project';
 import { formatFileSize } from '../../services/typeDetector';
 
@@ -119,18 +120,20 @@ export const CodeEditorView: React.FC<CodeEditorViewProps> = ({
 
   if (textFiles.length === 0) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-16 text-center text-slate-400">
-        <FileCode className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-        <h3 className="text-base font-bold text-white">Düzenlenebilir Metin Dosyası Bulunamadı</h3>
-        <p className="text-xs text-slate-500 mt-1">
-          Dosya Yöneticisi sekmesinden yeni bir dosya (.html, .js, .lua, .py) oluşturabilir veya yükleyebilirsiniz.
-        </p>
-      </div>
+      <PageContainer width="xl">
+        <EmptyState
+          icon={<FileCode className="w-12 h-12" />}
+          title="Düzenlenebilir Metin Dosyası Bulunamadı"
+          description="Dosya Yöneticisi sekmesinden yeni bir dosya (.html, .js, .lua, .py) oluşturabilir veya yükleyebilirsiniz."
+        />
+      </PageContainer>
     );
   }
 
   return (
-    <div className={`space-y-2 pb-24 max-w-7xl mx-auto px-2 sm:px-4 pt-1 ${isFullscreen ? 'fixed inset-0 z-50 bg-[#08090d] p-4 pb-4 h-screen' : ''}`}>
+    <div className={isFullscreen
+      ? 'fixed inset-0 z-50 bg-[#08090d] p-3 h-dvh overflow-y-auto space-y-2'
+      : 'page-shell space-y-2 max-w-7xl mx-auto w-full px-2 sm:px-4 pt-2'}>
       {/* File Tabs Strip */}
       <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 border-b border-white/10">
         <div className="flex items-center gap-1.5 overflow-x-auto py-1 scrollbar-none">
@@ -271,7 +274,7 @@ export const CodeEditorView: React.FC<CodeEditorViewProps> = ({
               key={idx}
               type="button"
               onClick={() => insertSymbol(sym === '\t' ? '  ' : sym)}
-              className="min-w-[32px] h-7 px-2 rounded-md bg-[#161928] hover:bg-purple-600/30 text-purple-300 font-mono text-xs font-semibold flex items-center justify-center border border-white/5 active:scale-90 transition-all shrink-0"
+              className="min-w-[40px] h-10 px-2 rounded-md bg-[#161928] hover:bg-purple-600/30 text-purple-300 font-mono text-sm font-semibold flex items-center justify-center border border-white/5 active:scale-90 transition-all shrink-0"
             >
               {sym === '\t' ? 'Tab' : sym}
             </button>

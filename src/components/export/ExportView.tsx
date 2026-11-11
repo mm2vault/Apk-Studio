@@ -11,6 +11,7 @@ import {
   Terminal,
   HelpCircle
 } from 'lucide-react';
+import { PageContainer, PageHeader, Notice } from '../ui/Page';
 import { Project } from '../../types/project';
 import { generateProjectZip, generateFullAndroidGradleProjectZip, triggerDownload } from '../../services/fileService';
 
@@ -21,15 +22,17 @@ interface ExportViewProps {
 export const ExportView: React.FC<ExportViewProps> = ({ project }) => {
   const [isExportingGradle, setIsExportingGradle] = useState(false);
   const [isExportingRaw, setIsExportingRaw] = useState(false);
+  const [error, setError] = useState('');
 
   const handleDownloadGradleProject = async () => {
     setIsExportingGradle(true);
+    setError('');
     try {
       const zipBlob = await generateFullAndroidGradleProjectZip(project);
       const filename = `${project.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_android_gradle.zip`;
       triggerDownload(zipBlob, filename);
     } catch (err: any) {
-      alert(`Gradle projesi oluşturulamadı: ${err?.message}`);
+      setError(`Gradle projesi oluşturulamadı: ${err?.message || 'Bilinmeyen hata'}`);
     } finally {
       setIsExportingGradle(false);
     }
@@ -37,12 +40,13 @@ export const ExportView: React.FC<ExportViewProps> = ({ project }) => {
 
   const handleDownloadRawZip = async () => {
     setIsExportingRaw(true);
+    setError('');
     try {
       const zipBlob = await generateProjectZip(project);
       const filename = `${project.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_source.zip`;
       triggerDownload(zipBlob, filename);
     } catch (err: any) {
-      alert(`Kaynak ZIP oluşturulamadı: ${err?.message}`);
+      setError(`Kaynak ZIP oluşturulamadı: ${err?.message || 'Bilinmeyen hata'}`);
     } finally {
       setIsExportingRaw(false);
     }
@@ -102,17 +106,14 @@ jobs:
   };
 
   return (
-    <div className="space-y-6 pb-24 max-w-5xl mx-auto px-4 pt-2">
-      {/* Top Header */}
-      <div className="border-b border-white/10 pb-4">
-        <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-          <Download className="w-5 h-5 text-purple-400" />
-          <span>APK & Proje Dışa Aktarma Merkezi</span>
-        </h2>
-        <p className="text-xs text-slate-400 mt-0.5">
-          Hazır Android Gradle projelerinizi indirin veya GitHub Actions bulut derleme boru hattını çalıştırın.
-        </p>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="APK & Proje Dışa Aktarma Merkezi"
+        description="Hazır Android Gradle projelerinizi indirin veya GitHub Actions bulut derleme boru hattını çalıştırın."
+        icon={<Download className="w-5 h-5 text-purple-400 shrink-0" />}
+      />
+
+      {error && <Notice kind="error">{error}</Notice>}
 
       {/* Export Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -252,6 +253,6 @@ jobs:
           </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 };

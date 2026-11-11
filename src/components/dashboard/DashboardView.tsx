@@ -333,7 +333,7 @@ if __name__ == '__main__':
   };
 
   return (
-    <div className="space-y-6 pb-24 max-w-7xl mx-auto px-4 pt-4">
+    <div className="page-shell space-y-6 max-w-7xl mx-auto w-full px-4 pt-4">
       {/* Active Project Highlight Banner */}
       {currentProject ? (
         <div className="glass-panel p-5 rounded-2xl relative overflow-hidden border border-purple-500/20 glow-purple">

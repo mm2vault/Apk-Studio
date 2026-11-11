@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Activity, AlertCircle, CheckCircle2, Cloud, Download, ExternalLink,
+  AlertCircle, CheckCircle2, Cloud, ExternalLink,
   Hammer, Loader2, RefreshCw, Server, Smartphone, Terminal, XCircle
 } from 'lucide-react';
+import { PageContainer, PageHeader, Notice } from '../ui/Page';
 import { Project, ToolchainStatus, ValidationResult } from '../../types/project';
 import { BuildApiService } from '../../services/buildService';
 import { triggerDownload } from '../../services/fileService';
@@ -87,27 +88,23 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
   );
 
   return (
-    <div className="max-w-5xl mx-auto px-4 pt-3 pb-28 space-y-5">
-      <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4">
-        <div>
-          <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-            <Hammer className="w-5 h-5 text-purple-400" /> APK Derleme Merkezi
-          </h2>
-          <p className="text-xs text-slate-400 mt-1">Yerel Gradle derlemesi veya GitHub Actions bulut derlemesi.</p>
-        </div>
-        <button onClick={refreshStatus} disabled={loadingCheck} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10" title="Durumu yenile">
-          <RefreshCw className={`w-4 h-4 ${loadingCheck ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="APK Derleme Merkezi"
+        description="Yerel Gradle derlemesi veya GitHub Actions bulut derlemesi."
+        icon={<Hammer className="w-5 h-5 text-purple-400 shrink-0" />}
+        actions={
+          <button onClick={refreshStatus} disabled={loadingCheck} className="tap-target inline-flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 disabled:opacity-50" title="Durumu yenile" aria-label="Durumu yenile">
+            <RefreshCw className={`w-4 h-4 ${loadingCheck ? 'animate-spin' : ''}`} />
+          </button>
+        }
+      />
 
       {message && (
-        <div className={`rounded-xl border p-3 flex items-start gap-2 ${message.kind === 'success' ? 'border-emerald-500/30 bg-emerald-500/10' : message.kind === 'error' ? 'border-rose-500/30 bg-rose-500/10' : 'border-cyan-500/30 bg-cyan-500/10'}`}>
-          {message.kind === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" /> : message.kind === 'error' ? <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" /> : <Activity className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />}
-          <div className="min-w-0 flex-1">
-            <p className="text-xs text-slate-200">{message.text}</p>
-            {message.url && <a href={message.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 mt-2 text-xs text-cyan-300 underline">GitHub Actions'ı aç <ExternalLink className="w-3 h-3" /></a>}
-          </div>
-        </div>
+        <Notice kind={message.kind}>
+          <p>{message.text}</p>
+          {message.url && <a href={message.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 mt-2 text-cyan-300 underline">GitHub Actions'ı aç <ExternalLink className="w-3 h-3" /></a>}
+        </Notice>
       )}
 
       <section className="glass-panel rounded-2xl border border-white/10 p-4 space-y-2">
@@ -180,6 +177,6 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
         <Server className="w-3 h-3 inline mr-1" />
         Yerel derleme sunucu tarafında SDK gerektirir. Bulut derleme ise Android Gradle projesinin GitHub deposunda bulunmasını ve Actions erişim iznini gerektirir.
       </div>
-    </div>
+    </PageContainer>
   );
 };

@@ -432,7 +432,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
   const selectedFile = project.files.find(f => f.id === selectedFileId);
 
   return (
-    <div className="space-y-4 pb-24 max-w-7xl mx-auto px-4 pt-2">
+    <div className="page-shell space-y-4 max-w-7xl mx-auto w-full px-4 pt-4">
       {/* Hidden File Inputs */}
       <input
         ref={fileInputRef}

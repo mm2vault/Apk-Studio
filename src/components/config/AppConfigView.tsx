@@ -109,7 +109,7 @@ export const AppConfigView: React.FC<AppConfigViewProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-24 max-w-5xl mx-auto px-4 pt-2">
+    <div className="page-shell space-y-6 max-w-5xl mx-auto w-full px-4 pt-4">
       {/* Top Title & Save Button */}
       <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-4">
         <div>
