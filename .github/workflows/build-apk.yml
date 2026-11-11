@@ -55,13 +55,57 @@ jobs:
           distribution: temurin
           java-version: "21"
 
+      - name: Configure Android version
+        working-directory: android
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          path = Path("app/build.gradle")
+          if not path.exists():
+              raise SystemExit("Expected app/build.gradle was not generated.")
+          source = path.read_text()
+          source, code_count = re.subn(r'versionCode\s+\d+', f'versionCode {os.environ["BUILD_NUMBER"]}', source, count=1)
+          source, name_count = re.subn(r'versionName\s+"[^"]+"', f'versionName "0.1.{os.environ["BUILD_NUMBER"]}"', source, count=1)
+          if code_count != 1 or name_count != 1:
+              raise SystemExit("Could not safely update Android versionCode/versionName.")
+          path.write_text(source)
+          PY
+
+      - name: Prepare Release signing key
+        if: ${{ inputs.build_variant == 'release' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$KEYSTORE_BASE64" || (echo "Missing ANDROID_KEYSTORE_BASE64 secret" && exit 1)
+          test -n "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" || (echo "Missing ANDROID_KEYSTORE_PASSWORD secret" && exit 1)
+          test -n "${{ secrets.ANDROID_KEY_ALIAS }}" || (echo "Missing ANDROID_KEY_ALIAS secret" && exit 1)
+          test -n "${{ secrets.ANDROID_KEY_PASSWORD }}" || (echo "Missing ANDROID_KEY_PASSWORD secret" && exit 1)
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/apk-studio-release.jks"
+          test -s "$RUNNER_TEMP/apk-studio-release.jks"
+          chmod 600 "$RUNNER_TEMP/apk-studio-release.jks"
+
       - name: Build APK
         working-directory: android
         env:
           BUILD_VARIANT: ${{ inputs.build_variant || 'debug' }}
+          KEYSTORE_FILE: ${{ runner.temp }}/apk-studio-release.jks
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x ./gradlew
-          ./gradlew "assemble${BUILD_VARIANT^}" --stacktrace --no-daemon
+          if [ "$BUILD_VARIANT" = "release" ]; then
+            ./gradlew assembleRelease --stacktrace --no-daemon \
+              -Pandroid.injected.signing.store.file="$KEYSTORE_FILE" \
+              -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+              -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+              -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+          else
+            ./gradlew assembleDebug --stacktrace --no-daemon
+          fi
 
       - name: Publish direct APK download
         env:
@@ -75,4 +119,4 @@ jobs:
           fi
           gh release create "v0.1.${GITHUB_RUN_NUMBER}" "$APK_PATH" \
             --title "APK Studio ${BUILD_VARIANT} build ${GITHUB_RUN_NUMBER}" \
-            --notes "Automatically generated APK Studio Android build."
+            --notes "Automatically generated APK Studio ${BUILD_VARIANT} build. Version code: ${GITHUB_RUN_NUMBER}."
