@@ -124,14 +124,12 @@ export const UpdateView: React.FC = () => {
             <div className="flex flex-col sm:flex-row gap-3">
               {apkAsset ? (
                 <a href={apkAsset.browser_download_url} className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm px-4 py-3" target="_blank" rel="noreferrer">
-                  <Download className="w-4 h-4" /> APK indir
+                  <Download className="w-4 h-4" /> İmzalı APK indir
                 </a>
               ) : (
-                <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-sm text-amber-200" role="status">Bu sürümde kuruluma uygun imzalı Release APK bulunamadı. Debug APK güncelleme olarak sunulmaz.</div>
-              )}
-              <a href={release.html_url} className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm px-4 py-3" target="_blank" rel="noreferrer">
-                  <ExternalLink className="w-4 h-4" /> Sürümü aç / dosyaları indir
-                </a>
+                <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-sm text-amber-200" role="status">
+                  Bu sürümde kuruluma uygun imzalı Release APK bulunamadı. Debug APK güncelleme olarak sunulmaz.
+                </div>
               )}
               <a href={release.html_url} className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 hover:bg-white/5 text-slate-200 text-sm px-4 py-3" target="_blank" rel="noreferrer">
                 GitHub sürüm sayfası <ExternalLink className="w-4 h-4" />
