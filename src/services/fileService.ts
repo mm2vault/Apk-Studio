@@ -8,6 +8,23 @@ const TEXT_EXTENSIONS = [
   'md', 'properties', 'yaml', 'yml', 'svg', 'sh', 'bat', 'env'
 ];
 
+/**
+ * Android string kaynağı (strings.xml) için metni güvenli hale getirir:
+ * XML özel karakterleri kaçırılır; apostrof, tırnak, ters eğik çizgi ve
+ * satır başındaki @ / ? Android'in kendi kaçış kurallarına göre işlenir.
+ */
+export function escapeAndroidString(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/^([@?])/, '\\$1');
+}
+
 export function isTextFile(fileName: string): boolean {
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
   return TEXT_EXTENSIONS.includes(ext);
@@ -416,7 +433,7 @@ public class MainActivity extends AppCompatActivity {
 
   // 7. res/values/strings.xml
   zip.file('app/src/main/res/values/strings.xml', `<resources>
-    <string name="app_name">${cfg.name || project.name}</string>
+    <string name="app_name">${escapeAndroidString(cfg.name || project.name)}</string>
 </resources>
 `);
 
