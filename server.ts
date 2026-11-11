@@ -420,11 +420,27 @@ jobs:
       return res.send(apk);
     } catch (error: any) {
       console.error('[APK Studio] Local build failed:', error);
+      const output = [error?.stdout, error?.stderr]
+        .map(value => String(value || '').trim())
+        .filter(Boolean)
+        .join('\\n');
+      const timestamp = new Date().toISOString();
+      const outputLines = output.split(/\\r?\\n/).map(line => line.trim()).filter(Boolean).slice(-120);
+      const logs = (outputLines.length ? outputLines : [String(error?.message || 'Gradle derlemesi başarısız oldu.')])
+        .map((line, index) => ({
+          id: `local-${Date.now()}-${index}`,
+          timestamp,
+          level: /\\b(error|failed|exception)\\b/i.test(line) ? 'error' as const
+            : /\\bwarn(ing)?\\b/i.test(line) ? 'warn' as const : 'info' as const,
+          message: line.slice(0, 1200),
+          step: 'Gradle'
+        }));
       return res.status(500).json({
         success: false,
         errorType: 'GRADLE_BUILD_FAILED',
-        message: error?.stderr || error?.message || 'Gradle derlemesi başarısız oldu.',
-        instructions: ['Android SDK lisanslarını kabul edin.', 'ANDROID_HOME yolunu ve SDK Build Tools kurulumunu kontrol edin.', 'Gradle hata çıktısındaki ilk gerçek derleme hatasını inceleyin.']
+        message: error?.message || 'Gradle derlemesi başarısız oldu.',
+        logs,
+        instructions: ['Android SDK lisanslarını kabul edin.', 'ANDROID_HOME yolunu ve SDK Build Tools kurulumunu kontrol edin.', 'Derleme günlüklerindeki ilk gerçek hata satırını inceleyin.']
       });
     } finally {
       await fs.rm(workspace, { recursive: true, force: true }).catch(() => undefined);
