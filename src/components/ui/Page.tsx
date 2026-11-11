@@ -47,7 +47,7 @@ const noticeStyles: Record<NoticeKind, { box: string; icon: React.ReactNode }> =
 
 /** Başarı / hata / uyarı / bilgi bildirimi için tek tasarım. */
 export const Notice: React.FC<{ kind?: NoticeKind; children: React.ReactNode }> = ({ kind = 'info', children }) => {
-  const style = noticeStyles[kind];
+  const style = noticeStyles[kind as NoticeKind];
   return (
     <div role={kind === 'error' ? 'alert' : 'status'} className={`rounded-xl border p-3 flex items-start gap-2 text-xs leading-relaxed ${style.box}`}>
       {style.icon}

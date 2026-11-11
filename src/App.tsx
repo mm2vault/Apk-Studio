@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { StorageService } from './services/storage';
+import { StorageService, STORAGE_ERROR_EVENT } from './services/storage';
+import { Notice } from './components/ui/Page';
 import { Project } from './types/project';
 import { Header } from './components/layout/Header';
 import { MobileNav } from './components/layout/MobileNav';
@@ -18,7 +19,18 @@ export default function App() {
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
+  const [storageError, setStorageError] = useState('');
+
   const currentProject = projects.find(p => p.id === activeProjectId) || projects[0] || null;
+
+  useEffect(() => {
+    const onStorageError = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string }>).detail;
+      setStorageError(detail?.message || 'Değişiklikler kaydedilemedi.');
+    };
+    window.addEventListener(STORAGE_ERROR_EVENT, onStorageError);
+    return () => window.removeEventListener(STORAGE_ERROR_EVENT, onStorageError);
+  }, []);
 
   useEffect(() => {
     if (currentProject && currentProject.files.length > 0) {
@@ -77,6 +89,16 @@ export default function App() {
         onSelectProject={handleSelectProject}
         onCreateProjectClick={() => setIsCreateModalOpen(true)}
       />
+      {storageError && (
+        <div className="max-w-7xl mx-auto w-full px-4 pt-3">
+          <Notice kind="error">
+            <div className="flex items-start justify-between gap-3">
+              <span>{storageError}</span>
+              <button type="button" onClick={() => setStorageError('')} className="shrink-0 underline text-rose-100" aria-label="Uyarıyı kapat">Kapat</button>
+            </div>
+          </Notice>
+        </div>
+      )}
       <main className="flex-1">
         {activeTab === 'dashboard' && (
           <DashboardView

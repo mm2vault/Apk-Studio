@@ -42,6 +42,7 @@ export const CodeEditorView: React.FC<CodeEditorViewProps> = ({
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const gutterRef = useRef<HTMLPreElement>(null);
 
   // Sync content when active file changes
   useEffect(() => {
@@ -87,6 +88,18 @@ export const CodeEditorView: React.FC<CodeEditorViewProps> = ({
     });
   };
 
+  // Satır numaraları metin kutusuyla birlikte kaysın
+  const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+    if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop;
+  };
+
+  // Tab tuşu odağı kaçırmak yerine iki boşluk girintisi eklesin
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== 'Tab') return;
+    e.preventDefault();
+    insertSymbol('  ');
+  };
+
   // Insert symbol helper for mobile virtual keyboards
   const insertSymbol = (sym: string) => {
     if (!textareaRef.current) return;
@@ -115,8 +128,8 @@ export const CodeEditorView: React.FC<CodeEditorViewProps> = ({
   // Quick Mobile symbols
   const mobileSymbols = ['{', '}', '(', ')', '[', ']', '<', '>', '/', '=', '"', "'", ';', ':', '$', '.', '_', '-', '+', '\t'];
 
-  const lines = editorContent.split('\n');
-  const lineCount = lines.length;
+  const lineCount = editorContent.split('\n').length;
+  const lineNumbers = Array.from({ length: lineCount }, (_, i) => i + 1).join('\n');
 
   if (textFiles.length === 0) {
     return (
@@ -237,15 +250,13 @@ export const CodeEditorView: React.FC<CodeEditorViewProps> = ({
       {/* Editor Body */}
       <div className="glass-panel rounded-2xl border border-white/10 overflow-hidden flex flex-col shadow-2xl">
         {/* Editor Main Container */}
-        <div className="relative flex flex-1 min-h-[460px] sm:min-h-[520px] bg-[#08090f]">
-          {/* Line Numbers Gutter */}
-          <div className="w-10 sm:w-12 bg-[#06070b] select-none text-right pr-2 pt-3 font-mono text-[11px] text-slate-600 border-r border-white/5 shrink-0 overflow-hidden leading-relaxed">
-            {Array.from({ length: Math.min(lineCount, 500) }, (_, i) => (
-              <div key={i + 1} className="h-5">
-                {i + 1}
-              </div>
-            ))}
-          </div>
+        <div className={`relative flex bg-[#08090f] ${isFullscreen ? 'h-[calc(100dvh-210px)] min-h-[240px]' : 'h-[55dvh] min-h-[320px] max-h-[640px]'}`}>
+          {/* Line Numbers Gutter: metin kutusuyla aynı yazı boyutu ve satır yüksekliği, kaydırma eşlenir */}
+          <pre
+            ref={gutterRef}
+            aria-hidden="true"
+            className="w-10 sm:w-12 bg-[#06070b] select-none text-right pr-2 py-3 font-mono text-xs sm:text-[13px] leading-relaxed text-slate-600 border-r border-white/5 shrink-0 overflow-hidden m-0"
+          >{lineNumbers}</pre>
 
           {/* Textarea Area */}
           <textarea
@@ -255,11 +266,14 @@ export const CodeEditorView: React.FC<CodeEditorViewProps> = ({
             onSelect={handleSelect}
             onKeyUp={handleSelect}
             onClick={handleSelect}
+            onScroll={handleScroll}
+            onKeyDown={handleKeyDown}
             spellCheck={false}
             autoCapitalize="none"
             autoComplete="off"
             autoCorrect="off"
-            className="w-full h-full min-h-[460px] sm:min-h-[520px] bg-transparent text-slate-100 font-mono text-xs sm:text-[13px] leading-relaxed p-3 focus:outline-none resize-none overflow-y-auto whitespace-pre selection:bg-purple-600 selection:text-white"
+            aria-label={`${currentFile?.name ?? 'Dosya'} içeriği`}
+            className="w-full h-full bg-transparent text-slate-100 font-mono text-xs sm:text-[13px] leading-relaxed p-3 focus:outline-none resize-none overflow-auto whitespace-pre selection:bg-purple-600 selection:text-white"
             placeholder="Kodunuzu buraya yazın..."
           />
         </div>

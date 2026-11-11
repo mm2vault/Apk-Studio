@@ -21,6 +21,7 @@ import {
   Sparkles,
   Layers
 } from 'lucide-react';
+import { Notice } from '../ui/Page';
 import { Project, ProjectFile } from '../../types/project';
 import { formatFileSize, detectProjectType } from '../../services/typeDetector';
 import { readBrowserFile, extractZipArchive, triggerDownload } from '../../services/fileService';
@@ -48,6 +49,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
   const [renamedName, setRenamedName] = useState('');
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -134,6 +136,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
     if (!fileList || fileList.length === 0) return;
 
     setIsUploading(true);
+    setError('');
     try {
       const addedFiles: ProjectFile[] = [];
       for (let i = 0; i < fileList.length; i++) {
@@ -154,7 +157,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
         updatedAt: Date.now()
       });
     } catch (err: any) {
-      alert(`Dosya yükleme hatası: ${err?.message}`);
+      setError(`Dosya yükleme hatası: ${err?.message || 'Bilinmeyen hata'}`);
     } finally {
       setIsUploading(false);
       e.target.value = '';
@@ -167,6 +170,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
     if (!fileList || fileList.length === 0) return;
 
     setIsUploading(true);
+    setError('');
     try {
       const addedFiles: ProjectFile[] = [];
       for (let i = 0; i < fileList.length; i++) {
@@ -186,7 +190,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
         updatedAt: Date.now()
       });
     } catch (err: any) {
-      alert(`Klasör yükleme hatası: ${err?.message}`);
+      setError(`Klasör yükleme hatası: ${err?.message || 'Bilinmeyen hata'}`);
     } finally {
       setIsUploading(false);
       e.target.value = '';
@@ -199,6 +203,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
     if (!file) return;
 
     setIsUploading(true);
+    setError('');
     try {
       const extracted = await extractZipArchive(file);
       const existingPaths = new Set(extracted.map(f => f.path));
@@ -212,7 +217,7 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
         updatedAt: Date.now()
       });
     } catch (err: any) {
-      alert(`ZIP çıkarma hatası: ${err?.message}`);
+      setError(`ZIP çıkarma hatası: ${err?.message || 'Bilinmeyen hata'}`);
     } finally {
       setIsUploading(false);
       e.target.value = '';
@@ -226,7 +231,8 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
 
     const path = newFileName.trim().replace(/^[\\/]/, '');
     if (project.files.some(f => f.path === path)) {
-      alert('Bu dosya yolu zaten mevcut!');
+      setError('Bu dosya yolu zaten mevcut!');
+      setIsNewFileModalOpen(false);
       return;
     }
 
@@ -457,6 +463,15 @@ export const FileManagerView: React.FC<FileManagerViewProps> = ({
         onChange={handleZipSelected}
         className="hidden"
       />
+
+      {error && (
+        <Notice kind="error">
+          <div className="flex items-start justify-between gap-3">
+            <span>{error}</span>
+            <button type="button" onClick={() => setError('')} className="shrink-0 underline" aria-label="Uyarıyı kapat">Kapat</button>
+          </div>
+        </Notice>
+      )}
 
       {/* Top Action Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-[#10121d] p-3 rounded-2xl border border-white/10">
