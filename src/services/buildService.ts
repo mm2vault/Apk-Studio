@@ -117,7 +117,8 @@ export const BuildApiService = {
         success: false,
         errorType: data.errorType || 'LOCAL_BUILD_FAILED',
         message: data.message || `Yerel derleme başarısız oldu (HTTP ${response.status}).`,
-        instructions: data.instructions || []
+        instructions: data.instructions || [],
+        logs: Array.isArray(data.logs) ? data.logs : []
       };
     } catch (err: any) {
       return {
