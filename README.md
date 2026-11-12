@@ -12,6 +12,10 @@ Kullanıcıların özellikle telefondan proje dosyalarını içe aktarması, kod
 
 Önemli: APK Studio'nun kendi Android APK'sını üretmek ile kullanıcının içe aktardığı herhangi bir projeyi APK'ya dönüştürmek farklı işlemlerdir. HTML/CSS/JS projeleri WebView tabanlı Android projesine dönüştürülebilir. Native Android projeleri mevcut Gradle yapılarını korumalıdır. Lua ve Python dosyaları tek başına otomatik olarak APK'ya dönüşmez; uygun motor/runtime gerekir.
 
+Statik HTML/CSS/JS uygulamaları ve hazırlanmış PWA/web build çıktıları Android WebView içine paketlenir; yerel dosyalar `WebViewAssetLoader` üzerinden güvenli bir uygulama kaynağı olarak sunulur. React/Vue/Vite/Angular/Next gibi kaynak projeleri önce kendi araçlarıyla derleyip `dist/` veya `build/` çıktısını içe aktarın. Node.js sunucusu, API rotaları ve SSR özellikleri statik WebView APK içine otomatik eklenmez. Lua/Python dosyaları içe aktarılıp düzenlenebilir; ancak LÖVE2D, Kivy/Buildozer veya Chaquopy gibi bir Android runtime entegrasyonu olmadan doğrudan APK üretilmez.
+
+WebView için kamera, mikrofon, konum ve HTML dosya seçici gibi native köprüler henüz tamamlanmadı. Yapılandırma ekranındaki manifest izinleri bu özelliklerin Android runtime izinlerini otomatik olarak istemez; derleme öncesi uyarılar gösterilir.
+
 ## APK Studio Android uygulamasını derleme
 
 1. GitHub deposunda Actions sekmesini aç.
@@ -53,6 +57,7 @@ base64 -w 0 apk-studio-release.jks
 - Üretim derlemesi: npm run build
 - Sunucuyu başlatma: npm start
 - Tür denetimi: npm run lint
+- WebView Android scaffold gerçek Gradle smoke testi: npm run test:web-apk
 
 ## Güvenlik ve yapılandırma
 
