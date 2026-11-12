@@ -39,7 +39,8 @@ function getUnsupportedProjectMessage(type: Project['type']): string {
 
 function getWebViewWarnings(project: Project): string[] {
   if (project.type !== 'web-to-apk') return [];
-  const permissions = project.config.permissions;
+  const permissions = project.config?.permissions;
+  if (!permissions) return [];
   const warnings: string[] = [];
   if (permissions.camera || permissions.audioRecord || permissions.locationFine || permissions.locationCoarse) {
     warnings.push('Manifest izinleri eklenecek; ancak WebView için kamera/mikrofon/konum runtime izin köprüsü henüz tamamlanmadı. Bu özellikler APK içinde çalışmayabilir.');
