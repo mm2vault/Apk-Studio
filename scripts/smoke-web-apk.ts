@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import JSZip from 'jszip';
 import { generateFullAndroidGradleProjectZip } from '../src/services/fileService';
-import type { Project } from '../src/types/project';
+import { detectProjectType } from '../src/services/typeDetector';
+import type { Project, ProjectFile } from '../src/types/project';
 
 const now = Date.now();
 const project: Project = {
@@ -83,6 +84,39 @@ const project: Project = {
     autoDeploy: false
   }
 };
+
+const makeFile = (filePath: string): ProjectFile => ({
+  id: filePath,
+  name: filePath.split('/').pop() || filePath,
+  path: filePath,
+  size: 0,
+  type: 'text/plain',
+  content: '',
+  isBinary: false,
+  lastModified: now
+});
+
+assert.equal(detectProjectType(project.files).type, 'web-to-apk');
+assert.equal(detectProjectType([
+  makeFile('app/src/main/AndroidManifest.xml'),
+  makeFile('app/build.gradle'),
+  makeFile('app/src/main/java/com/example/MainActivity.kt')
+]).type, 'native-android');
+assert.equal(detectProjectType([makeFile('main.lua')]).type, 'love2d-lua');
+assert.equal(detectProjectType([makeFile('main.py')]).type, 'python-mobile');
+
+const frameworkSource = [
+  makeFile('package.json'),
+  makeFile('vite.config.ts'),
+  makeFile('src/main.tsx'),
+  makeFile('index.html')
+];
+const frameworkDetection = detectProjectType(frameworkSource);
+assert.equal(frameworkDetection.type, 'custom');
+assert.match(frameworkDetection.recommendations.join(' '), /npm install/);
+const builtFrameworkDetection = detectProjectType([...frameworkSource, makeFile('dist/index.html')]);
+assert.equal(builtFrameworkDetection.type, 'web-to-apk');
+assert.equal(builtFrameworkDetection.entryPoint, 'dist/index.html');
 
 const archiveBlob = await generateFullAndroidGradleProjectZip(project);
 const archive = await JSZip.loadAsync(Buffer.from(await archiveBlob.arrayBuffer()));
