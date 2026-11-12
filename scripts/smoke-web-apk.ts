@@ -136,7 +136,11 @@ importFixture.file('.env', 'PUBLIC_FLAG=true');
 importFixture.file('gradlew', '#!/bin/sh\necho wrapper\n');
 importFixture.file('assets/icon.png', Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
 const importFixtureBytes = await importFixture.generateAsync({ type: 'nodebuffer' });
-const importedFiles = await extractZipArchive(new File([importFixtureBytes], 'import-fixture.zip', { type: 'application/zip' }));
+const importFixtureArrayBuffer = importFixtureBytes.buffer.slice(
+  importFixtureBytes.byteOffset,
+  importFixtureBytes.byteOffset + importFixtureBytes.byteLength
+) as ArrayBuffer;
+const importedFiles = await extractZipArchive(new File([importFixtureArrayBuffer], 'import-fixture.zip', { type: 'application/zip' }));
 assert.equal(importedFiles.length, 4);
 assert.equal(importedFiles.find(file => file.path === '.env')?.isBinary, false);
 assert.equal(importedFiles.find(file => file.path === 'gradlew')?.content, '#!/bin/sh\necho wrapper\n');
