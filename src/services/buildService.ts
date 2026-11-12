@@ -50,7 +50,7 @@ function getWebViewWarnings(project: Project): string[] {
   if (!permissions.internet) {
     warnings.push('INTERNET izni kapalı. Uygulamanın uzaktaki API, görsel veya web kaynaklarına erişimi olmayabilir.');
   }
-  if (project.config.webSettings?.allowJavaScript === false && project.files.some(file => /\\.(js|mjs|cjs)$/i.test(file.path))) {
+  if (project.config.webSettings?.allowJavaScript === false && project.files.some(file => /\.(js|mjs|cjs)$/i.test(file.path))) {
     warnings.push('JavaScript kapalı olmasına rağmen projede JavaScript dosyaları var; uygulama işlevleri çalışmayabilir.');
   }
   return warnings;
