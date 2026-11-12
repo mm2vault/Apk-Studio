@@ -154,8 +154,10 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
             <button type="button" onClick={() => setBuildVariant('release')} className={`rounded-lg py-2 text-xs font-semibold border ${buildVariant === 'release' ? 'bg-purple-600/20 border-purple-400 text-purple-200' : 'bg-white/5 border-white/10 text-slate-400'}`}>Release APK</button>
           </div>
           <div className="rounded-xl bg-black/30 border border-white/5 p-3 space-y-2">
-            <p className="text-[11px] text-slate-300">Önce <button onClick={() => setActiveTab('export')} className="text-cyan-300 underline">Android Gradle ZIP</button> dosyasını indirip GitHub deponuza yükleyin.</p>
-            <p className="text-[10px] text-slate-500 leading-relaxed">Ardından sunucuya GITHUB_REPOSITORY, GITHUB_TOKEN ve GITHUB_BUILD_REF ortam değişkenlerini ekleyin. Token için Actions: write izni gerekir; token tarayıcıya gönderilmez.</p>
+            <p className="text-[11px] text-slate-300">Önce <button onClick={() => setActiveTab('export')} className="text-cyan-300 underline">Android Gradle ZIP</button> dosyasını indirin. ZIP'i çıkarıp içindeki Gradle proje dosyalarını GitHub deponuza bir klasör olarak yükleyin; aşağıdaki project_path alanına o klasörün yolunu yazın.</p>
+            <p className="text-[10px] text-amber-300 leading-relaxed">APK Studio proje dosyalarını GitHub'a otomatik yüklemez. Cloud Build yalnızca depoda zaten bulunan proje klasörünü derler.</p>
+            <p className="text-[10px] text-slate-500 leading-relaxed">Sunucuya GITHUB_REPOSITORY, GITHUB_TOKEN ve GITHUB_BUILD_REF ortam değişkenlerini ekleyin. Token için Actions: write izni gerekir; token tarayıcıya gönderilmez.</p>
+            {buildVariant === 'release' && <p className="text-[10px] text-amber-300 leading-relaxed">Release APK yalnızca projenizin kendi Gradle signingConfig ayarı varsa imzalanır. APK Studio'nun imza anahtarı kullanıcı projelerine otomatik uygulanmaz.</p>}
           </div>
           <button onClick={handleCloudBuild} disabled={cloudBuilding || !apiKey.trim() || !validation?.valid || !projectPath.trim()} className="w-full flex items-center justify-center gap-2 rounded-xl py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold">
             {cloudBuilding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
