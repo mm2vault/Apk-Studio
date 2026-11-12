@@ -37,6 +37,25 @@ function getUnsupportedProjectMessage(type: Project['type']): string {
   return '';
 }
 
+function getWebViewWarnings(project: Project): string[] {
+  if (project.type !== 'web-to-apk') return [];
+  const permissions = project.config.permissions;
+  const warnings: string[] = [];
+  if (permissions.camera || permissions.audioRecord || permissions.locationFine || permissions.locationCoarse) {
+    warnings.push('Manifest izinleri eklenecek; ancak WebView için kamera/mikrofon/konum runtime izin köprüsü henüz tamamlanmadı. Bu özellikler APK içinde çalışmayabilir.');
+  }
+  if (permissions.readStorage || permissions.writeStorage) {
+    warnings.push('Depolama izinleri tek başına HTML file picker desteği sağlamaz; WebView dosya seçici köprüsü henüz eklenmedi.');
+  }
+  if (!permissions.internet) {
+    warnings.push('INTERNET izni kapalı. Uygulamanın uzaktaki API, görsel veya web kaynaklarına erişimi olmayabilir.');
+  }
+  if (project.config.webSettings?.allowJavaScript === false && project.files.some(file => /\\.(js|mjs|cjs)$/i.test(file.path))) {
+    warnings.push('JavaScript kapalı olmasına rağmen projede JavaScript dosyaları var; uygulama işlevleri çalışmayabilir.');
+  }
+  return warnings;
+}
+
 function decodeBuildLogs(encoded: string | null): BuildLog[] {
   if (!encoded) return [];
   try {
@@ -99,10 +118,13 @@ export const BuildApiService = {
           errors: [...result.errors, unsupportedMessage]
         };
       }
-      return result;
+      return {
+        ...result,
+        warnings: [...result.warnings, ...getWebViewWarnings(project)]
+      };
     } catch {
       const errors: string[] = [];
-      const warnings: string[] = [];
+      const warnings: string[] = getWebViewWarnings(project);
       const suggestions: string[] = [];
 
       if (!project.config.name.trim()) errors.push('Uygulama adı boş bırakılamaz.');
