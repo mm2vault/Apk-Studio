@@ -404,7 +404,7 @@ jobs:
 
       const wrapper = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
       if (process.platform !== 'win32') await fs.chmod(path.join(workspace, 'gradlew'), 0o755);
-      await execFileAsync(wrapper, ['assembleDebug', '--stacktrace', '--no-daemon'], {
+      const buildResult = await execFileAsync(wrapper, ['assembleDebug', '--stacktrace', '--no-daemon', '--console=plain'], {
         cwd: workspace,
         timeout: 900000,
         maxBuffer: 20 * 1024 * 1024,
@@ -412,11 +412,28 @@ jobs:
         env: { ...process.env, ANDROID_HOME: androidHome, ANDROID_SDK_ROOT: androidHome }
       });
 
+      const output = [buildResult.stdout, buildResult.stderr]
+        .map(value => String(value || '').trim())
+        .filter(Boolean)
+        .join('\n');
+      const outputLines = output.split(/\r?\n/).map(line => line.trim()).filter(Boolean).slice(-12);
+      const successLogs = outputLines.map((line, index) => ({
+        id: `local-success-${Date.now()}-${index}`,
+        timestamp: new Date().toISOString(),
+        level: /\b(error|failed|exception)\b/i.test(line) ? 'error'
+          : /\bwarn(ing)?\b/i.test(line) ? 'warn' : 'info',
+        message: line.slice(0, 220),
+        step: 'Gradle'
+      }));
+
       const apkPath = path.join(workspace, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
       const apk = await fs.readFile(apkPath);
       res.setHeader('Content-Type', 'application/vnd.android.package-archive');
       res.setHeader('Content-Disposition', 'attachment; filename="app-debug.apk"');
       res.setHeader('Content-Length', String(apk.length));
+      res.setHeader('X-APK-Studio-Build-Logs', Buffer.from(JSON.stringify(successLogs)).toString('base64'));
+      res.setHeader('Access-Control-Expose-Headers', 'X-APK-Studio-Build-Logs');
+      res.setHeader('Cache-Control', 'no-store');
       return res.send(apk);
     } catch (error: any) {
       console.error('[APK Studio] Local build failed:', error);
