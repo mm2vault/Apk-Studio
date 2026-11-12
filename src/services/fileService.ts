@@ -214,12 +214,105 @@ export async function generateProjectZip(project: Project): Promise<Blob> {
     versionName: project.config.versionName,
     versionCode: project.config.versionCode,
     type: project.type,
+    iconDataUrl: project.config.iconDataUrl,
+    iconShape: project.config.iconShape,
     exportedWith: 'APK Studio Mobile',
     exportedAt: new Date().toISOString()
   }, null, 2);
   zip.file('.apkstudio-meta.json', metaJson);
 
   return await zip.generateAsync({ type: 'blob' });
+}
+
+async function addLauncherIconResources(
+  zip: JSZip,
+  iconDataUrl?: string,
+  iconShape: Project['config']['iconShape'] = 'squircle'
+): Promise<void> {
+  const vector = (round: boolean) => `<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path android:fillColor="#111827" android:pathData="${round
+      ? 'M24,0 C37.255,0 48,10.745 48,24 C48,37.255 37.255,48 24,48 C10.745,48 0,37.255 0,24 C0,10.745 10.745,0 24,0 Z'
+      : 'M8,0 H40 C44.418,0 48,3.582 48,8 V40 C48,44.418 44.418,48 40,48 H8 C3.582,48 0,44.418 0,40 V8 C0,3.582 3.582,0 8,0 Z'}" />
+    <path android:fillColor="#22D3EE" android:pathData="M17,5 H31 C33.761,5 36,7.239 36,10 V38 C36,40.761 33.761,43 31,43 H17 C14.239,43 12,40.761 12,38 V10 C12,7.239 14.239,5 17,5 Z" />
+    <path android:fillColor="#111827" android:pathData="M17,10 H31 V35 H17 Z" />
+    <path android:fillColor="#A78BFA" android:pathData="M21,38 H27 V40 H21 Z" />
+    <path android:fillColor="#A78BFA" android:pathData="M39,7 L40.5,11.5 L45,13 L40.5,14.5 L39,19 L37.5,14.5 L33,13 L37.5,11.5 Z" />
+</vector>
+`;
+
+  zip.file('app/src/main/res/mipmap-anydpi-v21/ic_launcher.xml', vector(false));
+  zip.file('app/src/main/res/mipmap-anydpi-v21/ic_launcher_round.xml', vector(true));
+
+  if (!iconDataUrl || typeof Image === 'undefined' || typeof document === 'undefined') return;
+
+  try {
+    const image = new Image();
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error('Uygulama ikonu okunamadı.'));
+      image.src = iconDataUrl;
+    });
+
+    const densities = [
+      { folder: 'mipmap-mdpi', size: 48 },
+      { folder: 'mipmap-hdpi', size: 72 },
+      { folder: 'mipmap-xhdpi', size: 96 },
+      { folder: 'mipmap-xxhdpi', size: 144 },
+      { folder: 'mipmap-xxxhdpi', size: 192 }
+    ];
+
+    for (const density of densities) {
+      for (const round of [false, true]) {
+        const canvas = document.createElement('canvas');
+        canvas.width = density.size;
+        canvas.height = density.size;
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('Uygulama ikonu için canvas oluşturulamadı.');
+
+        const size = density.size;
+        const radius = round ? size / 2 : iconShape === 'square' ? 0
+          : iconShape === 'squircle' ? size * 0.23 : size * 0.17;
+        context.beginPath();
+        if (round) {
+          context.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+        } else if (radius === 0) {
+          context.rect(0, 0, size, size);
+        } else {
+          context.moveTo(radius, 0);
+          context.lineTo(size - radius, 0);
+          context.quadraticCurveTo(size, 0, size, radius);
+          context.lineTo(size, size - radius);
+          context.quadraticCurveTo(size, size, size - radius, size);
+          context.lineTo(radius, size);
+          context.quadraticCurveTo(0, size, 0, size - radius);
+          context.lineTo(0, radius);
+          context.quadraticCurveTo(0, 0, radius, 0);
+        }
+        context.closePath();
+        context.clip();
+        context.fillStyle = '#111827';
+        context.fillRect(0, 0, size, size);
+
+        const inset = size * 0.08;
+        const scale = Math.min((size - inset * 2) / image.width, (size - inset * 2) / image.height);
+        const width = image.width * scale;
+        const height = image.height * scale;
+        context.drawImage(image, (size - width) / 2, (size - height) / 2, width, height);
+
+        const base64 = canvas.toDataURL('image/png').split(',')[1];
+        const name = round ? 'ic_launcher_round.png' : 'ic_launcher.png';
+        zip.file(`app/src/main/res/${density.folder}/${name}`, base64, { base64: true });
+      }
+    }
+  } catch (error) {
+    // Keep the built-in vector icons if a user-supplied image cannot be converted.
+    console.warn('Custom launcher icon could not be generated; using the default icon.', error);
+  }
 }
 
 export async function generateFullAndroidGradleProjectZip(project: Project): Promise<Blob> {
@@ -478,6 +571,9 @@ public class MainActivity extends AppCompatActivity {
     }
 }
 `);
+
+  // 7. Launcher icons: always provide valid resources; replace with user icon when available.
+  await addLauncherIconResources(zip, cfg.iconDataUrl, cfg.iconShape);
 
   // 7. res/values/strings.xml
   zip.file('app/src/main/res/values/strings.xml', `<resources>
