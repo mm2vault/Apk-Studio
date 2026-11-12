@@ -24,6 +24,19 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+function getUnsupportedProjectMessage(type: Project['type']): string {
+  if (type === 'love2d-lua') {
+    return 'Lua dosyaları içe aktarılıp düzenlenebilir; doğrudan APK derlemek için LÖVE Android runtime içeren bir Android Gradle projesi gerekir.';
+  }
+  if (type === 'python-mobile') {
+    return 'Python dosyaları içe aktarılıp düzenlenebilir; APK üretmek için Kivy/Buildozer veya Chaquopy ile oluşturulmuş Android Gradle projesi gerekir.';
+  }
+  if (type === 'custom') {
+    return 'Bu proje henüz doğrudan APK paketlenemiyor. React/Vue/Vite/Angular kaynaklarını önce npm run build ile derleyip dist/ veya build/ çıktısını içe aktarın; Node.js sunucu ve SSR özellikleri WebView APK içine otomatik eklenmez.';
+  }
+  return '';
+}
+
 export const BuildApiService = {
   async checkSystemToolchain(): Promise<ToolchainStatus> {
     try {
@@ -61,11 +74,12 @@ export const BuildApiService = {
       });
       if (!response.ok) throw new Error('Doğrulama servisi hatası');
       const result = await response.json() as ValidationResult;
-      if (!['web-to-apk', 'native-android'].includes(project.type)) {
+      const unsupportedMessage = getUnsupportedProjectMessage(project.type);
+      if (unsupportedMessage) {
         return {
           ...result,
           valid: false,
-          errors: [...result.errors, 'Bu proje türü doğrudan APK derlemesini desteklemiyor. Web projesi veya yerel Android Gradle projesi kullanın.']
+          errors: [...result.errors, unsupportedMessage]
         };
       }
       return result;
@@ -81,6 +95,8 @@ export const BuildApiService = {
       }
       if (project.config.targetSdk < 35) warnings.push('Target SDK 35 veya üzeri önerilir.');
       if (project.files.length === 0) errors.push('Projede derlenecek dosya bulunmuyor.');
+      const unsupportedMessage = getUnsupportedProjectMessage(project.type);
+      if (unsupportedMessage) errors.push(unsupportedMessage);
 
       return {
         valid: errors.length === 0,
