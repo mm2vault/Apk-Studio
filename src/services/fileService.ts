@@ -518,7 +518,8 @@ dependencies {
 </manifest>
 `);
 
-  const htmlEntry = project.files.find(f => f.path.toLowerCase() === 'index.html')
+  const htmlEntry = project.files.find(f => /(^|\/)(dist|build|www)\/index\.html$/i.test(f.path))
+    || project.files.find(f => f.path.toLowerCase() === 'index.html')
     || project.files.find(f => /\.html?$/i.test(f.path));
   const webEntryPath = (htmlEntry?.path || 'index.html')
     .replace(/\\/g, '/')
