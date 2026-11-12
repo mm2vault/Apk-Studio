@@ -12,7 +12,7 @@ interface GitHubRelease {
   body: string;
   html_url: string;
   published_at: string;
-  assets: Array<{ name: string; browser_download_url: string; size: number }>;
+  assets: Array<{ name: string; label?: string; browser_download_url: string; size: number }>;
   prerelease: boolean;
   draft: boolean;
 }
@@ -80,7 +80,15 @@ export const UpdateView: React.FC = () => {
 
   const updateAvailable = release ? isNewer(release.tag_name, CURRENT_VERSION) : false;
   // Only offer the explicitly named signed release package, never a debug build.
-  const apkAsset = release?.assets.find(asset => asset.name.toLowerCase() === 'apk-studio-release.apk');
+  const apkAsset = release?.assets?.find(asset => {
+    const assetName = asset.name.toLowerCase();
+    const assetLabel = asset.label?.toLowerCase();
+    // GitHub's gh-release "#label" changes the display label, not the stored filename.
+    // Accept both the current historical filename and the normalized future filename.
+    return assetName === 'apk-studio-release.apk'
+      || assetName === 'app-release.apk'
+      || assetLabel === 'apk-studio-release.apk';
+  });
 
   return (
     <PageContainer width="md">
