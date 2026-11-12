@@ -46,6 +46,16 @@ const project: Project = {
       content: "document.body.dataset.smokeTest = 'passed';",
       isBinary: false,
       lastModified: now
+    },
+    {
+      id: 'dist-index',
+      name: 'index.html',
+      path: 'dist/index.html',
+      size: 220,
+      type: 'text/html',
+      content: '<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="../css/style.css"></head><body><h1>Built web output</h1><script src="../js/app.js"></script></body></html>',
+      isBinary: false,
+      lastModified: now
     }
   ],
   config: {
@@ -97,6 +107,7 @@ const makeFile = (filePath: string): ProjectFile => ({
 });
 
 assert.equal(detectProjectType(project.files).type, 'web-to-apk');
+assert.equal(detectProjectType(project.files).entryPoint, 'dist/index.html');
 assert.equal(detectProjectType([
   makeFile('app/src/main/AndroidManifest.xml'),
   makeFile('app/build.gradle'),
@@ -130,6 +141,7 @@ const requiredFiles = [
   'app/src/main/res/mipmap-anydpi-v21/ic_launcher_round.xml',
   'app/src/main/res/values/strings.xml',
   'app/src/main/assets/index.html',
+  'app/src/main/assets/dist/index.html',
   'app/src/main/assets/css/style.css',
   'app/src/main/assets/js/app.js',
   '.github/workflows/build-apk.yml'
@@ -146,7 +158,7 @@ const manifest = await manifestEntry.async('string');
 const activity = await activityEntry.async('string');
 assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
 assert.match(manifest, /android:roundIcon="@mipmap\/ic_launcher_round"/);
-assert.match(activity, /file:\/\/\/android_asset\/index\.html/);
+assert.match(activity, /file:\/\/\/android_asset\/dist\/index\.html/);
 
 const workspace = await mkdtemp(path.join(tmpdir(), 'apk-studio-web-smoke-'));
 try {
