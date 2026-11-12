@@ -23,6 +23,11 @@ export function detectProjectType(files: ProjectFile[]): DetectionResult {
 
   const hasIndexHtml = names.includes('index.html') || paths.some(p => p.endsWith('/index.html'));
   const hasHtml = names.some(n => n.endsWith('.html') || n.endsWith('.htm'));
+  const hasPackageJson = paths.some(p => p === 'package.json' || p.endsWith('/package.json'));
+  const hasFrameworkSource = files.some(f => /\\.(tsx|jsx|vue|svelte)$/i.test(f.path));
+  const hasBundlerConfig = paths.some(p => /(^|\\/)(vite\\.config\\.|next\\.config\\.|angular\\.json$|webpack\\.config\\.|svelte\\.config\\.)/i.test(p));
+  const builtWebEntry = files.find(f => /(^|\\/)(dist|build|www)\\/index\\.html$/i.test(f.path));
+  const needsWebBuild = hasPackageJson && (hasFrameworkSource || hasBundlerConfig) && !builtWebEntry;
   const hasManifest = paths.some(p => p.includes('androidmanifest.xml'));
   const hasGradle = paths.some(p => p.includes('build.gradle') || p.includes('build.gradle.kts'));
   const hasJava = names.some(n => n.endsWith('.java') || n.endsWith('.kt'));
@@ -44,11 +49,19 @@ export function detectProjectType(files: ProjectFile[]): DetectionResult {
     const mainAct = files.find(f => f.name.includes('MainActivity') || f.name.endsWith('.java') || f.name.endsWith('.kt'));
     entryPoint = mainAct ? mainAct.path : 'AndroidManifest.xml';
     notes.push('Android Studio uyumlu yerel Gradle projesi tespit edildi.');
+  } else if (needsWebBuild) {
+    type = 'custom';
+    title = 'Web framework source (build output required)';
+    badgeColor = 'bg-amber-500/20 text-amber-300 border border-amber-500/30';
+    entryPoint = files.find(f => /(^|\\/)package\\.json$/i.test(f.path))?.path || null;
+    notes.push('React/Vue/Angular/Vite gibi kaynak proje algılandı; ham TSX/JSX/Vue dosyaları WebView içinde doğrudan çalışmaz.');
+    recommendations.push('Projeyi kendi araçlarıyla derleyin (genellikle npm install ve npm run build), ardından dist/ veya build/ klasöründeki index.html ve çıktı dosyalarını içe aktarın.');
+    recommendations.push('Sunucu tarafı özellikler, Node.js API rotaları ve Next.js SSR doğrudan APK içine paketlenmez; statik dışa aktarma gerekir.');
   } else if (hasIndexHtml || hasHtml) {
     type = 'web-to-apk';
     title = 'Web to APK (HTML5 / WebView / PWA)';
     badgeColor = 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30';
-    const indexF = files.find(f => f.name.toLowerCase() === 'index.html') || files.find(f => f.name.toLowerCase().endsWith('.html'));
+    const indexF = builtWebEntry || files.find(f => f.path.toLowerCase() === 'index.html') || files.find(f => f.name.toLowerCase() === 'index.html') || files.find(f => f.name.toLowerCase().endsWith('.html'));
     entryPoint = indexF ? indexF.path : 'index.html';
     notes.push('Web tabanlı uygulama tespit edildi. Android WebView bileşeni ile paketlenebilir.');
     if (!hasIndexHtml) {
@@ -60,7 +73,8 @@ export function detectProjectType(files: ProjectFile[]): DetectionResult {
     badgeColor = 'bg-purple-500/20 text-purple-400 border border-purple-500/30';
     const mainLua = files.find(f => f.name.toLowerCase() === 'main.lua');
     entryPoint = mainLua ? mainLua.path : files.find(f => f.name.endsWith('.lua'))?.path || 'main.lua';
-    notes.push('Lua betikleri tespit edildi. LÖVE Android motoru veya LuaJIT ile çalıştırılabilir.');
+    notes.push('Lua betikleri tespit edildi. Dosyalar içe aktarılabilir ve düzenlenebilir; LÖVE2D çalışma zamanı henüz otomatik olarak paketlenmez.');
+    recommendations.push('APK üretmek için LÖVE Android runtime içeren geçerli bir Android Gradle projesi gerekir.');
     if (!mainLua) {
       recommendations.push('LÖVE2D oyunları için "main.lua" başlangıç dosyası gereklidir.');
     }
@@ -70,7 +84,8 @@ export function detectProjectType(files: ProjectFile[]): DetectionResult {
     badgeColor = 'bg-amber-500/20 text-amber-400 border border-amber-500/30';
     const mainPy = files.find(f => f.name.toLowerCase() === 'main.py');
     entryPoint = mainPy ? mainPy.path : files.find(f => f.name.endsWith('.py'))?.path || 'main.py';
-    notes.push('Python dosyaları tespit edildi. Android için Kivy/Buildozer veya Chaquopy yapılandırması gerekir.');
+    notes.push('Python dosyaları tespit edildi. Kaynaklar içe aktarılabilir ve düzenlenebilir; doğrudan APK paketleme henüz etkin değil.');
+    recommendations.push('APK üretmek için Kivy/Buildozer veya Chaquopy ile oluşturulmuş Android Gradle projesi gerekir.');
     if (!mainPy) {
       recommendations.push('Kivy/BeeWare için "main.py" başlangıç dosyası gereklidir.');
     }
