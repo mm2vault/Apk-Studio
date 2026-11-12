@@ -158,7 +158,9 @@ const manifest = await manifestEntry.async('string');
 const activity = await activityEntry.async('string');
 assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
 assert.match(manifest, /android:roundIcon="@mipmap\/ic_launcher_round"/);
-assert.match(activity, /file:\/\/\/android_asset\/dist\/index\.html/);
+assert.match(activity, /https:\/\/appassets\.androidplatform\.net\/assets\/dist\/index\.html/);
+assert.match(activity, /WebViewAssetLoader/);
+assert.match(activity, /setAllowFileAccess\(false\)/);
 
 const workspace = await mkdtemp(path.join(tmpdir(), 'apk-studio-web-smoke-'));
 try {
