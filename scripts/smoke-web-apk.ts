@@ -4,7 +4,7 @@ import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import JSZip from 'jszip';
-import { generateFullAndroidGradleProjectZip } from '../src/services/fileService';
+import { extractZipArchive, generateFullAndroidGradleProjectZip } from '../src/services/fileService';
 import { detectProjectType } from '../src/services/typeDetector';
 import type { Project, ProjectFile } from '../src/types/project';
 
@@ -128,6 +128,49 @@ assert.match(frameworkDetection.recommendations.join(' '), /npm install/);
 const builtFrameworkDetection = detectProjectType([...frameworkSource, makeFile('dist/index.html')]);
 assert.equal(builtFrameworkDetection.type, 'web-to-apk');
 assert.equal(builtFrameworkDetection.entryPoint, 'dist/index.html');
+
+// Exercise the same ZIP importer used by the phone UI with text, extensionless and binary files.
+const importFixture = new JSZip();
+importFixture.file('index.html', '<!doctype html><html><body>Imported project</body></html>');
+importFixture.file('.env', 'PUBLIC_FLAG=true');
+importFixture.file('gradlew', '#!/bin/sh\\necho wrapper\\n');
+importFixture.file('assets/icon.png', Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+const importFixtureBytes = await importFixture.generateAsync({ type: 'nodebuffer' });
+const importedFiles = await extractZipArchive(new File([importFixtureBytes], 'import-fixture.zip', { type: 'application/zip' }));
+assert.equal(importedFiles.length, 4);
+assert.equal(importedFiles.find(file => file.path === '.env')?.isBinary, false);
+assert.equal(importedFiles.find(file => file.path === 'gradlew')?.content, '#!/bin/sh\\necho wrapper\\n');
+const importedIcon = importedFiles.find(file => file.path === 'assets/icon.png');
+assert.equal(importedIcon?.isBinary, true);
+assert.match(importedIcon?.content || '', /^data:image\\/png;base64,/);
+assert.equal(detectProjectType(importedFiles).type, 'web-to-apk');
+
+// Native Android projects must be exported as their original Gradle structure, not wrapped in WebView.
+const nativeProject: Project = {
+  ...project,
+  id: 'native-import-smoke-test',
+  name: 'Native Import Smoke Test',
+  type: 'native-android',
+  files: [
+    makeFile('settings.gradle'),
+    { ...makeFile('build.gradle'), content: "plugins { id 'com.android.application' version '8.2.2' apply false }" },
+    { ...makeFile('app/build.gradle'), content: "plugins { id 'com.android.application' }\\nandroid { namespace 'com.example.nativeapp' }" },
+    { ...makeFile('app/src/main/AndroidManifest.xml'), content: '<manifest xmlns:android="http://schemas.android.com/apk/res/android" />' },
+    { ...makeFile('app/src/main/java/com/example/nativeapp/MainActivity.kt'), content: 'package com.example.nativeapp\\nclass MainActivity' },
+    { ...makeFile('gradlew'), content: '#!/bin/sh\\necho existing-wrapper\\n' }
+  ]
+};
+const nativeArchiveBlob = await generateFullAndroidGradleProjectZip(nativeProject);
+const nativeArchive = await JSZip.loadAsync(Buffer.from(await nativeArchiveBlob.arrayBuffer()));
+assert.ok(nativeArchive.file('settings.gradle'));
+assert.ok(nativeArchive.file('app/build.gradle'));
+assert.ok(nativeArchive.file('app/src/main/java/com/example/nativeapp/MainActivity.kt'));
+assert.ok(nativeArchive.file('gradlew'));
+assert.ok(nativeArchive.file('README_APK_STUDIO.md'));
+const nativeWorkflow = await nativeArchive.file('.github/workflows/build-apk.yml')?.async('string');
+assert.match(nativeWorkflow || '', /project_path/);
+assert.match(nativeWorkflow || '', /assemble/);
+assert.equal(nativeArchive.file('app/src/main/assets/index.html'), null);
 
 const archiveBlob = await generateFullAndroidGradleProjectZip(project);
 const archive = await JSZip.loadAsync(Buffer.from(await archiveBlob.arrayBuffer()));
