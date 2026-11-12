@@ -37,6 +37,23 @@ function getUnsupportedProjectMessage(type: Project['type']): string {
   return '';
 }
 
+function decodeBuildLogs(encoded: string | null): BuildLog[] {
+  if (!encoded) return [];
+  try {
+    const parsed = JSON.parse(atob(encoded));
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(item => item && typeof item.message === 'string').map((item, index) => ({
+      id: typeof item.id === 'string' ? item.id : `local-${index}`,
+      timestamp: typeof item.timestamp === 'string' ? item.timestamp : new Date().toISOString(),
+      level: ['info', 'warn', 'error', 'success'].includes(item.level) ? item.level : 'info',
+      message: item.message,
+      step: typeof item.step === 'string' ? item.step : 'Gradle'
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export const BuildApiService = {
   async checkSystemToolchain(): Promise<ToolchainStatus> {
     try {
@@ -124,6 +141,7 @@ export const BuildApiService = {
         return {
           success: true,
           message: 'APK başarıyla oluşturuldu.',
+          logs: decodeBuildLogs(response.headers.get('x-apk-studio-build-logs')),
           apk: await response.blob()
         };
       }
