@@ -125,6 +125,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       const metadataVersionCode = Number(metadata.versionCode);
       const versionCode = Number.isInteger(metadataVersionCode) && metadataVersionCode > 0
         ? metadataVersionCode : DEFAULT_CONFIG.versionCode;
+      const metadataIcon = typeof metadata.iconDataUrl === 'string' && metadata.iconDataUrl.startsWith('data:image/')
+        && metadata.iconDataUrl.length <= 4_000_000 ? metadata.iconDataUrl : undefined;
+      const allowedIconShapes = ['squircle', 'circle', 'rounded', 'teardrop', 'square'] as const;
+      const iconShape = allowedIconShapes.includes(metadata.iconShape as typeof allowedIconShapes[number])
+        ? metadata.iconShape as typeof allowedIconShapes[number] : DEFAULT_CONFIG.iconShape;
 
       const newProject: Project = {
         id: `proj_${Date.now()}`,
@@ -138,7 +143,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           name: projName,
           packageId: pkg,
           versionName: metadataVersionName,
-          versionCode
+          versionCode,
+          iconDataUrl: metadataIcon,
+          iconShape
         },
         cloudConfig: {
           provider: 'github-actions',
