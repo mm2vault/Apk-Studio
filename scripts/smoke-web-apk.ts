@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import JSZip from 'jszip';
@@ -156,25 +156,53 @@ const nativeProject: Project = {
   name: 'Native Import Smoke Test',
   type: 'native-android',
   files: [
-    makeFile('settings.gradle'),
+    { ...makeFile('settings.gradle'), content: "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\ndependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }\nrootProject.name = 'Native Import Smoke Test'\ninclude ':app'" },
     { ...makeFile('build.gradle'), content: "plugins { id 'com.android.application' version '8.2.2' apply false }" },
-    { ...makeFile('app/build.gradle'), content: "plugins { id 'com.android.application' }\nandroid { namespace 'com.example.nativeapp' }" },
-    { ...makeFile('app/src/main/AndroidManifest.xml'), content: '<manifest xmlns:android="http://schemas.android.com/apk/res/android" />' },
-    { ...makeFile('app/src/main/java/com/example/nativeapp/MainActivity.kt'), content: 'package com.example.nativeapp\nclass MainActivity' },
-    { ...makeFile('gradlew'), content: '#!/bin/sh\necho existing-wrapper\n' }
+    { ...makeFile('gradle.properties'), content: 'android.useAndroidX=true\norg.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8' },
+    { ...makeFile('app/build.gradle'), content: "plugins { id 'com.android.application' }\nandroid { namespace 'com.example.nativeapp'; compileSdk 34; defaultConfig { applicationId 'com.example.nativeapp'; minSdk 24; targetSdk 34; versionCode 1; versionName '1.0' } }" },
+    { ...makeFile('app/src/main/AndroidManifest.xml'), content: '<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application android:label="Native Smoke"><activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter></activity></application></manifest>' },
+    { ...makeFile('app/src/main/java/com/example/nativeapp/MainActivity.java'), content: 'package com.example.nativeapp;\nimport android.app.Activity;\nimport android.os.Bundle;\npublic class MainActivity extends Activity { @Override protected void onCreate(Bundle state) { super.onCreate(state); } }' }
   ]
 };
 const nativeArchiveBlob = await generateFullAndroidGradleProjectZip(nativeProject);
 const nativeArchive = await JSZip.loadAsync(Buffer.from(await nativeArchiveBlob.arrayBuffer()));
 assert.ok(nativeArchive.file('settings.gradle'));
 assert.ok(nativeArchive.file('app/build.gradle'));
-assert.ok(nativeArchive.file('app/src/main/java/com/example/nativeapp/MainActivity.kt'));
-assert.ok(nativeArchive.file('gradlew'));
+assert.ok(nativeArchive.file('app/src/main/java/com/example/nativeapp/MainActivity.java'));
 assert.ok(nativeArchive.file('README_APK_STUDIO.md'));
+assert.equal(nativeArchive.file('gradlew'), null);
 const nativeWorkflow = await nativeArchive.file('.github/workflows/build-apk.yml')?.async('string');
 assert.match(nativeWorkflow || '', /project_path/);
+assert.match(nativeWorkflow || '', /gradle wrapper/);
 assert.match(nativeWorkflow || '', /assemble/);
 assert.equal(nativeArchive.file('app/src/main/assets/index.html'), null);
+
+const nativeWorkspace = await mkdtemp(path.join(tmpdir(), 'apk-studio-native-smoke-'));
+try {
+  for (const entry of Object.values(nativeArchive.files)) {
+    if (entry.dir) continue;
+    const destination = path.resolve(nativeWorkspace, entry.name);
+    assert.ok(destination.startsWith(nativeWorkspace + path.sep), 'Native ZIP path escaped the build directory.');
+    await mkdir(path.dirname(destination), { recursive: true });
+    await writeFile(destination, await entry.async('nodebuffer'));
+  }
+
+  execFileSync('gradle', ['wrapper', '--gradle-version', '8.2.1', '--distribution-type', 'bin'], {
+    cwd: nativeWorkspace,
+    env: process.env,
+    stdio: 'inherit'
+  });
+  await chmod(path.join(nativeWorkspace, 'gradlew'), 0o755);
+  execFileSync('./gradlew', ['assembleDebug', '--stacktrace', '--no-daemon'], {
+    cwd: nativeWorkspace,
+    env: process.env,
+    stdio: 'inherit'
+  });
+  await access(path.join(nativeWorkspace, 'app/build/outputs/apk/debug/app-debug.apk'));
+  console.log('PASS: imported native Android Gradle project preserved and built into a real debug APK.');
+} finally {
+  await rm(nativeWorkspace, { recursive: true, force: true });
+}
 
 const archiveBlob = await generateFullAndroidGradleProjectZip(project);
 const archive = await JSZip.loadAsync(Buffer.from(await archiveBlob.arrayBuffer()));
