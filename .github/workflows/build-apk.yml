@@ -136,8 +136,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           APK_PATH: ${{ steps.apk.outputs.path }}
+          RELEASE_APK_PATH: ${{ runner.temp }}/apk-studio-release.apk
         run: |
-          gh release create "v0.1.${GITHUB_RUN_NUMBER}" "${APK_PATH}#apk-studio-release.apk" \
+          cp "$APK_PATH" "$RELEASE_APK_PATH"
+          gh release create "v0.1.${GITHUB_RUN_NUMBER}" "$RELEASE_APK_PATH" \
             --title "APK Studio v0.1.${GITHUB_RUN_NUMBER}" \
             --notes "Signed APK Studio release. Android versionCode: ${GITHUB_RUN_NUMBER}. Install over an existing copy only when signed with the same release keystore."
 
@@ -147,6 +149,7 @@ jobs:
           RELEASE_TAG: v0.1.${{ github.run_number }}
           RELEASE_URL: https://github.com/${{ github.repository }}/releases/tag/v0.1.${{ github.run_number }}
           APK_URL: https://github.com/${{ github.repository }}/releases/download/v0.1.${{ github.run_number }}/apk-studio-release.apk
+          APK_PATH: ${{ runner.temp }}/apk-studio-release.apk
         run: |
           mkdir -p public
           python3 - <<'PY'
@@ -158,7 +161,7 @@ jobs:
               'body': 'Signed Release APK. Android versionCode: ' + os.environ['GITHUB_RUN_NUMBER'] + '.',
               'html_url': os.environ['RELEASE_URL'],
               'published_at': os.environ['GITHUB_RUN_ID'],
-              'assets': [{'name': 'apk-studio-release.apk', 'browser_download_url': os.environ['APK_URL'], 'size': 0}],
+              'assets': [{'name': 'apk-studio-release.apk', 'label': 'apk-studio-release.apk', 'browser_download_url': os.environ['APK_URL'], 'size': os.path.getsize(os.environ['APK_PATH'])}],
               'prerelease': False,
               'draft': False
           }
