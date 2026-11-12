@@ -16,7 +16,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Project } from '../../types/project';
-import { formatFileSize } from '../../services/typeDetector';
+import { detectProjectType, formatFileSize } from '../../services/typeDetector';
 import { DEFAULT_CONFIG } from '../../services/storage';
 import { extractZipArchive } from '../../services/fileService';
 
@@ -95,21 +95,50 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
     try {
       const extractedFiles = await extractZipArchive(file);
+      const metadataFile = extractedFiles.find(item =>
+        !item.isBinary && item.path.toLowerCase().endsWith('.apkstudio-meta.json')
+      );
+      let metadata: Record<string, unknown> = {};
+      if (metadataFile) {
+        try {
+          const parsed = JSON.parse(metadataFile.content);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) metadata = parsed;
+        } catch {
+          // Ignore invalid optional metadata and continue with automatic detection.
+        }
+      }
+
+      const projectFiles = extractedFiles.filter(item => item !== metadataFile);
+      if (projectFiles.length === 0) throw new Error('ZIP arşivinde içe aktarılabilir proje dosyası bulunamadı.');
+
       const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_\- ]/g, '');
-      const projName = cleanName || 'İçe Aktarılan Proje';
-      const pkg = `com.imported.${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'app'}`;
+      const metadataName = typeof metadata.name === 'string' ? metadata.name.trim() : '';
+      const projName = metadataName || cleanName || 'İçe Aktarılan Proje';
+      const rawSlug = cleanName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const safeSlug = rawSlug ? (/^[a-z]/.test(rawSlug) ? rawSlug : `app${rawSlug}`) : 'app';
+      const metadataPackage = typeof metadata.packageId === 'string' ? metadata.packageId : '';
+      const packageIdRegex = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/i;
+      const pkg = packageIdRegex.test(metadataPackage) ? metadataPackage : `com.imported.${safeSlug}`;
+      const detected = detectProjectType(projectFiles);
+      const metadataVersionName = typeof metadata.versionName === 'string' && metadata.versionName.trim()
+        ? metadata.versionName.trim() : DEFAULT_CONFIG.versionName;
+      const metadataVersionCode = Number(metadata.versionCode);
+      const versionCode = Number.isInteger(metadataVersionCode) && metadataVersionCode > 0
+        ? metadataVersionCode : DEFAULT_CONFIG.versionCode;
 
       const newProject: Project = {
         id: `proj_${Date.now()}`,
         name: projName,
-        description: `${file.name} arşivinden içe aktarıldı (${extractedFiles.length} dosya)`,
-        type: extractedFiles.some(f => f.name.toLowerCase() === 'index.html') ? 'web-to-apk' : 'custom',
+        description: `${file.name} arşivinden içe aktarıldı (${projectFiles.length} dosya) · ${detected.title}`,
+        type: detected.type,
         createdAt: Date.now(),
         updatedAt: Date.now(),
         config: {
           ...DEFAULT_CONFIG,
           name: projName,
-          packageId: pkg
+          packageId: pkg,
+          versionName: metadataVersionName,
+          versionCode
         },
         cloudConfig: {
           provider: 'github-actions',
@@ -117,7 +146,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           apiToken: '',
           autoDeploy: false
         },
-        files: extractedFiles
+        files: projectFiles
       };
 
       onCreateProject(newProject);
