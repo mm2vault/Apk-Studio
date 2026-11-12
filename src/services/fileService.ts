@@ -527,7 +527,7 @@ dependencies {
     .split('/')
     .filter(part => part && part !== '.' && part !== '..')
     .join('/');
-  const escapedWebEntryPath = webEntryPath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const escapedWebEntryPath = webEntryPath.split('/').map(encodeURIComponent).join('/');
 
   // 6. MainActivity.java
   zip.file(`app/src/main/java/${pkgPath}/MainActivity.java`, `package ${pkg};
@@ -536,11 +536,15 @@ import android.annotation.SuppressLint;
 import android.os.Bundle;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
-import android.webkit.WebViewClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.webkit.WebViewAssetLoader;
+import androidx.webkit.WebViewClientCompat;
 
 public class MainActivity extends AppCompatActivity {
     private WebView webView;
+    private WebViewAssetLoader assetLoader;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -554,12 +558,20 @@ public class MainActivity extends AppCompatActivity {
         ws.setJavaScriptEnabled(${cfg.webSettings?.allowJavaScript ?? true});
         ws.setDomStorageEnabled(${cfg.webSettings?.allowDomStorage ?? true});
         ws.setDatabaseEnabled(true);
-        ws.setAllowFileAccess(true);
+        ws.setAllowFileAccess(false);
         ws.setLoadWithOverviewMode(true);
         ws.setUseWideViewPort(true);
 
-        webView.setWebViewClient(new WebViewClient());
-        webView.loadUrl("file:///android_asset/${escapedWebEntryPath}");
+        assetLoader = new WebViewAssetLoader.Builder()
+                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                .build();
+        webView.setWebViewClient(new WebViewClientCompat() {
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                return assetLoader.shouldInterceptRequest(request.getUrl());
+            }
+        });
+        webView.loadUrl("https://appassets.androidplatform.net/assets/${escapedWebEntryPath}");
     }
 
     @Override
