@@ -1,5 +1,6 @@
 import { Project, BuildLog, ToolchainStatus, ValidationResult } from '../types/project';
 import { generateFullAndroidGradleProjectZip } from './fileService';
+import { detectProjectType } from './typeDetector';
 
 export interface LocalBuildResponse {
   success: boolean;
@@ -95,6 +96,7 @@ export const BuildApiService = {
   },
 
   async validateProject(project: Project): Promise<ValidationResult> {
+    const detection = detectProjectType(project.files);
     try {
       const response = await fetch('/api/build/validate', {
         method: 'POST',
@@ -116,11 +118,15 @@ export const BuildApiService = {
         return {
           ...result,
           valid: false,
-          errors: [...result.errors, unsupportedMessage]
+          detectedType: detection.title,
+          errors: [...result.errors, unsupportedMessage],
+          suggestions: [...new Set([...result.suggestions, ...detection.recommendations])]
         };
       }
       return {
         ...result,
+        detectedType: detection.title,
+        suggestions: [...new Set([...result.suggestions, ...detection.recommendations])],
         warnings: [...result.warnings, ...getWebViewWarnings(project)]
       };
     } catch {
@@ -142,8 +148,8 @@ export const BuildApiService = {
         valid: errors.length === 0,
         errors,
         warnings,
-        suggestions,
-        detectedType: project.type,
+        suggestions: [...new Set([...suggestions, ...detection.recommendations])],
+        detectedType: detection.title,
         fileCount: project.files.length
       };
     }
