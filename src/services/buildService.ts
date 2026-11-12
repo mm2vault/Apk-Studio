@@ -129,7 +129,7 @@ export const BuildApiService = {
       const suggestions: string[] = [];
 
       if (!project.config.name.trim()) errors.push('Uygulama adı boş bırakılamaz.');
-      const pkgRegex = /^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$/i;
+      const pkgRegex = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/i;
       if (!pkgRegex.test(project.config.packageId || '')) {
         errors.push('Geçersiz Paket Kimliği. Örnek: com.ornek.app');
       }
