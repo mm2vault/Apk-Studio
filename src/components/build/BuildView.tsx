@@ -17,7 +17,6 @@ interface BuildViewProps {
 export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) => {
   const [toolchain, setToolchain] = useState<ToolchainStatus | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
-  const [projectPath, setProjectPath] = useState('.');
   const [buildVariant, setBuildVariant] = useState<'debug' | 'release'>('debug');
   const [apiKey, setApiKey] = useState('');
   const [loadingCheck, setLoadingCheck] = useState(true);
@@ -67,7 +66,7 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
     setCloudBuilding(true);
     setMessage(null);
     try {
-      const result = await BuildApiService.triggerCloudBuild(project, projectPath, apiKey, buildVariant);
+      const result = await BuildApiService.triggerCloudBuild(project, apiKey, buildVariant);
       setMessage(result.success
         ? { kind: 'success', text: result.message, url: result.workflowUrl }
         : { kind: 'error', text: result.message });
@@ -147,19 +146,21 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
               <p className="text-[10px] text-slate-500">GitHub sunucusunda gerçek Gradle APK derlemesi.</p>
             </div>
           </div>
-          <label className="block text-[11px] text-slate-300" htmlFor="apk-project-path">GitHub deposundaki Android proje klasörü</label>
-          <input id="apk-project-path" value={projectPath} onChange={e => setProjectPath(e.target.value)} placeholder="." className="w-full bg-[#0b0d14] border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-purple-500" />
+          <div className="rounded-xl bg-black/30 border border-white/5 p-3 space-y-1">
+            <p className="text-[11px] text-slate-200">Bu projedeki dosyalar otomatik olarak Gradle ZIP'e hazırlanır ve özel GitHub build deposuna geçici bir dala yüklenir.</p>
+            <p className="text-[10px] text-slate-500">İşlem bitince geçici dal silinir. APK, GitHub Actions çalışmasının Artifacts bölümünde 7 gün tutulur.</p>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <button type="button" onClick={() => setBuildVariant('debug')} className={`rounded-lg py-2 text-xs font-semibold border ${buildVariant === 'debug' ? 'bg-purple-600/20 border-purple-400 text-purple-200' : 'bg-white/5 border-white/10 text-slate-400'}`}>Debug APK</button>
             <button type="button" onClick={() => setBuildVariant('release')} className={`rounded-lg py-2 text-xs font-semibold border ${buildVariant === 'release' ? 'bg-purple-600/20 border-purple-400 text-purple-200' : 'bg-white/5 border-white/10 text-slate-400'}`}>Release APK</button>
           </div>
           <div className="rounded-xl bg-black/30 border border-white/5 p-3 space-y-2">
-            <p className="text-[11px] text-slate-300">Önce <button onClick={() => setActiveTab('export')} className="text-cyan-300 underline">Android Gradle ZIP</button> dosyasını indirin. ZIP'i çıkarıp içindeki Gradle proje dosyalarını GitHub deponuza bir klasör olarak yükleyin; aşağıdaki project_path alanına o klasörün yolunu yazın.</p>
-            <p className="text-[10px] text-amber-300 leading-relaxed">APK Studio proje dosyalarını GitHub'a otomatik yüklemez. Cloud Build yalnızca depoda zaten bulunan proje klasörünü derler.</p>
-            <p className="text-[10px] text-slate-500 leading-relaxed">Cloud Build için APK Studio Express backend gerekir; GitHub Pages tek başına API çalıştırmaz. Sunucuya GITHUB_REPOSITORY, GITHUB_TOKEN ve GITHUB_BUILD_REF ortam değişkenlerini ekleyin. Token için Actions: write izni gerekir; token tarayıcıya gönderilmez.</p>
+            <p className="text-[10px] text-slate-300 leading-relaxed">Kurulum için <a href="https://github.com/mm2vault/Apk-Studio/blob/main/templates/build-user-project.yml" target="_blank" rel="noreferrer" className="text-cyan-300 underline">build workflow şablonunu</a> özel build deposuna <code>.github/workflows/build-user-project.yml</code> adıyla ekleyin.</p>
+            <p className="text-[10px] text-amber-300 leading-relaxed">Kullanıcı projeleri kaynak kodu açık olan APK Studio deposuna gönderilmez. Ayrı bir PRIVATE GitHub build deposu gerekir; public depo güvenlik nedeniyle reddedilir.</p>
+            <p className="text-[10px] text-slate-500 leading-relaxed">APK Studio Express backend sunucusunda GITHUB_BUILD_REPOSITORY, GITHUB_TOKEN, GITHUB_BUILD_REF ve APK_STUDIO_BUILD_API_KEY tanımlanmalıdır. Token için özel depoda Contents: read/write ve Actions: write izinleri gerekir. Token tarayıcıya gönderilmez.</p>
             {buildVariant === 'release' && <p className="text-[10px] text-amber-300 leading-relaxed">Release APK yalnızca projenizin kendi Gradle signingConfig ayarı varsa imzalanır. APK Studio'nun imza anahtarı kullanıcı projelerine otomatik uygulanmaz.</p>}
           </div>
-          <button onClick={handleCloudBuild} disabled={cloudBuilding || !apiKey.trim() || !validation?.valid || !projectPath.trim()} className="w-full flex items-center justify-center gap-2 rounded-xl py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold">
+          <button onClick={handleCloudBuild} disabled={cloudBuilding || !apiKey.trim() || !validation?.valid || project.files.length === 0} className="w-full flex items-center justify-center gap-2 rounded-xl py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold">
             {cloudBuilding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
             {cloudBuilding ? 'GitHub Actions başlatılıyor…' : 'Cloud APK Oluştur'}
           </button>
@@ -197,7 +198,7 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
 
       <div className="text-[10px] text-slate-500 leading-relaxed">
         <Server className="w-3 h-3 inline mr-1" />
-        Yerel derleme sunucu tarafında SDK gerektirir. Bulut derleme ise Android Gradle projesinin GitHub deposunda bulunmasını ve Actions erişim iznini gerektirir.
+        Yerel derleme sunucu tarafında Android SDK gerektirir. Bulut derleme, projeyi özel GitHub build deposuna yükler; Release APK'nın kurulabilmesi için projenin kendi signingConfig ayarı gerekir.
       </div>
     </PageContainer>
   );
