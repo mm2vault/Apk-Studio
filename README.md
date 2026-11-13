@@ -61,14 +61,28 @@ base64 -w 0 apk-studio-release.jks
 
 ## Güvenlik ve yapılandırma
 
-Cloud Build sunucusu için gereken değişkenler sunucu ortamında tutulmalıdır:
+### Kullanıcı projeleri için gerçek Cloud Build kurulumu
 
-- GITHUB_REPOSITORY=owner/repository
-- GITHUB_TOKEN=Actions write yetkili sunucu tokeni
-- GITHUB_BUILD_REF=main
-- APK_STUDIO_BUILD_API_KEY=uzun ve rastgele gizli anahtar
+Cloud Build, APK Studio'nun kendi uygulamasını derlemekten ayrıdır. Kullanıcının içe aktardığı proje ZIP'i otomatik olarak sunucuya gönderilir ve GitHub Actions üzerinde derlenir.
 
-GitHub tokeni veya başka gizli anahtarlar hiçbir zaman React/Vite istemci koduna, APK içine, README'ye, loglara ya da Git geçmişine eklenmemelidir. İstemciye yalnızca gerekli API adresi ve kullanıcıya gösterilebilecek durum bilgileri gönderilmelidir.
+1. GitHub'da yalnızca bu iş için **yeni bir PRIVATE depo** oluştur. Public `mm2vault/Apk-Studio` deposuna kullanıcı projeleri yüklenmez.
+2. Bu depoda `.github/workflows/build-user-project.yml` dosyasını oluştur ve APK Studio'daki [workflow şablonunun](templates/build-user-project.yml) tamamını içine kopyala.
+3. Fine-grained Personal Access Token oluştur. Yalnızca bu özel depoya erişim ver ve şu izinleri aç:
+   - **Contents: Read and write** (geçici proje dalı ve ZIP yüklemek/silmek için)
+   - **Actions: Read and write** (workflow başlatmak için)
+   - Metadata: Read (GitHub'ın temel depo erişimi)
+4. APK Studio Express backend sunucusuna şu ortam değişkenlerini ekle:
+   - `GITHUB_BUILD_REPOSITORY=owner/private-apk-build`
+   - `GITHUB_TOKEN=<token>`
+   - `GITHUB_BUILD_REF=main`
+   - `APK_STUDIO_BUILD_API_KEY=<uzun-rastgele-gizli-değer>`
+5. APK Studio uygulamasında Derle ekranına backend'in `APK_STUDIO_BUILD_API_KEY` değerini gir ve Cloud APK Oluştur düğmesine bas.
+
+APK Studio en fazla 30 MB'lık Gradle ZIP arşivini özel depoda benzersiz bir geçici dala yükler, workflow'u başlatır ve işlem sonunda dalı siler. Derlenen APK, GitHub Actions çalışmasının **Artifacts** bölümünde 7 gün tutulur. Şu an bulut APK'sını uygulama içinden otomatik indirme/polling akışı henüz yoktur; Actions sayfasından indirmen gerekir. Geçici dal silme adımı başarısız olursa dalı özel depodan elle silebilirsin.
+
+Cloud Build yalnızca geçerli Android Gradle projesini derler. HTML/CSS/JS projeleri APK Studio tarafından önce WebView tabanlı Gradle projesine dönüştürülür. Lua/Python kaynakları tek başına otomatik APK üretmez; ilgili Android runtime gerekir. Release APK'nın yüklenebilir olması için kullanıcı projesinin kendi Gradle signingConfig ayarı yapılmış olmalıdır; APK Studio'nun imza anahtarı kullanıcı projesine otomatik eklenmez.
+
+GitHub tokeni veya başka gizli anahtarlar hiçbir zaman React/Vite istemci koduna, APK içine, README'ye, loglara ya da Git geçmişine eklenmemelidir. Token yalnızca Express sunucusunun ortamında kalır. Kullanıcı kaynak kodu public depoya gönderilmez.
 
 Yerel derleme, yüklenen Gradle betiklerini çalıştırabildiği için varsayılan olarak kapalıdır. Güvenilmeyen/public sunucularda açılmamalıdır.
 
