@@ -127,7 +127,7 @@ export const BuildApiService = {
         ...result,
         detectedType: detection.title,
         suggestions: [...new Set([...result.suggestions, ...detection.recommendations])],
-        warnings: [...result.warnings, ...getWebViewWarnings(project)]
+        warnings: [...result.warnings, ...getWebViewWarnings({ ...project, type: detection.type })]
       };
     } catch {
       const errors: string[] = [];
@@ -157,7 +157,7 @@ export const BuildApiService = {
 
   async requestLocalBuild(project: Project, apiKey: string): Promise<LocalBuildResponse> {
     try {
-      const projectZip = await generateFullAndroidGradleProjectZip(project);
+      const projectZip = await generateFullAndroidGradleProjectZip({ ...project, type: detectProjectType(project.files).type });
       const archiveBase64 = await blobToBase64(projectZip);
       const response = await fetch('/api/build/local', {
         method: 'POST',
