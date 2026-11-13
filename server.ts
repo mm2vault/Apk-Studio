@@ -6,7 +6,7 @@ import { promisify } from 'util';
 import { promises as fs } from 'fs';
 import os from 'os';
 import JSZip from 'jszip';
-import { timingSafeEqual } from 'crypto';
+import { randomUUID, timingSafeEqual } from 'crypto';
 import { fileURLToPath } from 'url';
 
 const execFileAsync = promisify(execFile);
@@ -464,46 +464,126 @@ jobs:
     }
   });
 
-  // API 5: Trigger the repository's real GitHub Actions workflow.
-  // The GitHub token is read only from the server environment and is never sent to the browser.
+  // API 5: Upload the current project to a PRIVATE build repository and dispatch its isolated workflow.
+  // The GitHub token stays on the server. User source is never uploaded to the public APK Studio source repo.
   app.post('/api/build/cloud/trigger', async (req, res) => {
     if (!isAuthorizedBuildRequest(req)) {
       return res.status(401).json({ success: false, message: 'Build API anahtarı gerekli veya geçersiz.' });
     }
-    const repository = process.env.GITHUB_REPOSITORY || '';
+
+    const repository = process.env.GITHUB_BUILD_REPOSITORY || '';
     const token = process.env.GITHUB_TOKEN || '';
     const ref = process.env.GITHUB_BUILD_REF || 'main';
-    const projectPath = typeof req.body?.projectPath === 'string' ? req.body.projectPath.trim() : '.';
+    const archiveBase64 = req.body?.archiveBase64;
     const buildVariant = req.body?.buildVariant === 'release' ? 'release' : 'debug';
 
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) || !token) {
       return res.status(503).json({
         success: false,
-        message: 'Cloud Build yapılandırılmamış. Sunucu ortamına GITHUB_REPOSITORY (owner/repo) ve GITHUB_TOKEN ekleyin.'
+        message: 'Cloud Build yapılandırılmamış. Sunucuda GITHUB_BUILD_REPOSITORY (özel depo) ve GITHUB_TOKEN ayarlayın.'
       });
     }
-    if (!projectPath || projectPath.startsWith('/') || projectPath.includes('\\\\') || projectPath.split('/').some((part: string) => part === '..')) {
-      return res.status(400).json({ success: false, message: 'Geçersiz proje klasörü yolu.' });
+    if (!/^[A-Za-z0-9_.-]+$/.test(ref)) {
+      return res.status(400).json({ success: false, message: 'GITHUB_BUILD_REF yalnızca harf, rakam, nokta, tire ve alt çizgi içerebilir.' });
+    }
+    if (typeof archiveBase64 !== 'string' || archiveBase64.length < 32 || archiveBase64.length > 42_000_000) {
+      return res.status(413).json({ success: false, message: 'Proje ZIP arşivi boş, geçersiz veya 30 MB sınırını aşıyor.' });
     }
 
+    const archiveBuffer = Buffer.from(archiveBase64, 'base64');
+    const canonicalBase64 = archiveBuffer.toString('base64');
+    if (
+      archiveBuffer.length < 22 ||
+      archiveBuffer.length > 30 * 1024 * 1024 ||
+      archiveBuffer[0] !== 0x50 ||
+      archiveBuffer[1] !== 0x4b ||
+      canonicalBase64.replace(/=+$/, '') !== archiveBase64.replace(/\s/g, '').replace(/=+$/, '')
+    ) {
+      return res.status(400).json({ success: false, message: 'Geçerli bir ZIP proje arşivi gönderilmelidir (en fazla 30 MB). ' });
+    }
+
+    const apiBase = `https://api.github.com/repos/${repository}`;
+    const headers = {
+      'Accept': 'application/vnd.github+json',
+      'Authorization': `Bearer ${token}`,
+      'X-GitHub-Api-Version': '2022-11-28',
+      'Content-Type': 'application/json'
+    };
+    const apiRequest = (endpoint: string, init?: RequestInit) => fetch(`${apiBase}${endpoint}`, {
+      ...init,
+      headers: { ...headers, ...(init?.headers || {}) }
+    });
+
+    let branchName = '';
     try {
-      const response = await fetch(`https://api.github.com/repos/${repository}/actions/workflows/build-apk.yml/dispatches`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/vnd.github+json',
-          'Authorization': `Bearer ${token}`,
-          'X-GitHub-Api-Version': '2022-11-28',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ ref, inputs: { project_path: projectPath, build_variant: buildVariant } })
-      });
-
-      if (!response.ok) {
-        const detail = await response.text();
-        return res.status(response.status).json({
+      const repoResponse = await apiRequest('');
+      if (!repoResponse.ok) {
+        const detail = await repoResponse.text();
+        return res.status(repoResponse.status).json({
           success: false,
-          message: `GitHub Actions isteği reddedildi (HTTP ${response.status}). ${detail.slice(0, 500)}`
+          message: `Özel build deposuna erişilemiyor (HTTP ${repoResponse.status}). Token izinlerini ve depo adını kontrol edin. ${detail.slice(0, 250)}`
         });
+      }
+      const repoInfo = await repoResponse.json() as { private?: boolean };
+      if (repoInfo.private !== true) {
+        return res.status(400).json({
+          success: false,
+          message: 'Güvenlik için kullanıcı projeleri yalnızca PRIVATE GitHub build deposuna gönderilir. Public depo kabul edilmiyor.'
+        });
+      }
+
+      const workflowCheck = await apiRequest(`/contents/.github/workflows/build-user-project.yml?ref=${encodeURIComponent(ref)}`);
+      if (!workflowCheck.ok) {
+        return res.status(409).json({
+          success: false,
+          message: 'Özel build deposunda .github/workflows/build-user-project.yml bulunamadı. APK Studio deposundaki templates/build-user-project.yml dosyasını bu yola kopyalayın.'
+        });
+      }
+
+      const baseRefResponse = await apiRequest(`/git/ref/heads/${encodeURIComponent(ref)}`);
+      if (!baseRefResponse.ok) {
+        return res.status(400).json({ success: false, message: `Build tabanı "${ref}" bulunamadı.` });
+      }
+      const baseRef = await baseRefResponse.json() as { object?: { sha?: string } };
+      const baseSha = baseRef.object?.sha;
+      if (!baseSha) throw new Error('GitHub build dalının başlangıç commit SHA değeri alınamadı.');
+
+      const requestId = randomUUID();
+      branchName = `apk-studio-build-${requestId}`;
+      const archivePath = `cloud-builds/apk-studio-${requestId}.zip`;
+
+      const branchResponse = await apiRequest('/git/refs', {
+        method: 'POST',
+        body: JSON.stringify({ ref: `refs/heads/${branchName}`, sha: baseSha })
+      });
+      if (!branchResponse.ok) {
+        const detail = await branchResponse.text();
+        throw new Error(`Geçici build dalı oluşturulamadı (HTTP ${branchResponse.status}): ${detail.slice(0, 300)}`);
+      }
+
+      const uploadResponse = await apiRequest(`/contents/${archivePath}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          message: `APK Studio temporary project upload ${requestId}`,
+          content: canonicalBase64,
+          branch: branchName
+        })
+      });
+      if (!uploadResponse.ok) {
+        const detail = await uploadResponse.text();
+        throw new Error(`Proje arşivi özel build deposuna yüklenemedi (HTTP ${uploadResponse.status}): ${detail.slice(0, 300)}`);
+      }
+
+      const dispatchResponse = await apiRequest('/actions/workflows/build-user-project.yml/dispatches', {
+        method: 'POST',
+        body: JSON.stringify({
+          ref: branchName,
+          inputs: { archive_path: archivePath, build_variant: buildVariant }
+        })
+      });
+      if (!dispatchResponse.ok) {
+        const detail = await dispatchResponse.text();
+        throw new Error(`GitHub Actions başlatılamadı (HTTP ${dispatchResponse.status}): ${detail.slice(0, 300)}`);
       }
 
       return res.status(202).json({
@@ -511,14 +591,19 @@ jobs:
         status: 'dispatched',
         provider: 'github-actions',
         repository,
-        ref,
-        projectPath,
+        branch: branchName,
         buildVariant,
-        workflowUrl: `https://github.com/${repository}/actions/workflows/build-apk.yml`,
-        message: 'GitHub Actions APK derlemesi başlatıldı. Çıktı Actions sayfasındaki Artifacts bölümünde görünecek.'
+        workflowUrl: `https://github.com/${repository}/actions/workflows/build-user-project.yml`,
+        message: 'Proje ZIP dosyası özel build deposuna geçici olarak yüklendi ve GitHub Actions başlatıldı. APK tamamlandığında Actions > Artifacts bölümünde bulunur; geçici dal işlem sonunda silinir.'
       });
     } catch (error: any) {
-      return res.status(502).json({ success: false, message: `GitHub bağlantı hatası: ${error?.message || 'Bilinmeyen hata'}` });
+      if (branchName) {
+        await apiRequest(`/git/refs/heads/${encodeURIComponent(branchName)}`, { method: 'DELETE' }).catch(() => undefined);
+      }
+      return res.status(502).json({
+        success: false,
+        message: error?.message || 'Cloud Build başlatılırken beklenmeyen bir hata oluştu.'
+      });
     }
   });
 
