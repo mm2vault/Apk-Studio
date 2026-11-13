@@ -113,7 +113,7 @@ export const BuildApiService = {
       });
       if (!response.ok) throw new Error('Doğrulama servisi hatası');
       const result = await response.json() as ValidationResult;
-      const unsupportedMessage = getUnsupportedProjectMessage(project.type);
+      const unsupportedMessage = getUnsupportedProjectMessage(detection.type);
       if (unsupportedMessage) {
         return {
           ...result,
@@ -131,7 +131,7 @@ export const BuildApiService = {
       };
     } catch {
       const errors: string[] = [];
-      const warnings: string[] = getWebViewWarnings(project);
+      const warnings: string[] = getWebViewWarnings({ ...project, type: detection.type });
       const suggestions: string[] = [];
 
       if (!project.config.name.trim()) errors.push('Uygulama adı boş bırakılamaz.');
@@ -141,7 +141,7 @@ export const BuildApiService = {
       }
       if (project.config.targetSdk < 35) warnings.push('Target SDK 35 veya üzeri önerilir.');
       if (project.files.length === 0) errors.push('Projede derlenecek dosya bulunmuyor.');
-      const unsupportedMessage = getUnsupportedProjectMessage(project.type);
+      const unsupportedMessage = getUnsupportedProjectMessage(detection.type);
       if (unsupportedMessage) errors.push(unsupportedMessage);
 
       return {
@@ -193,16 +193,19 @@ export const BuildApiService = {
     }
   },
 
-  async triggerCloudBuild(project: Project, projectPath = '.', apiKey = '', buildVariant: 'debug' | 'release' = 'debug'): Promise<any> {
+  async triggerCloudBuild(project: Project, apiKey = '', buildVariant: 'debug' | 'release' = 'debug'): Promise<any> {
     try {
+      const detection = detectProjectType(project.files);
+      const buildProject = { ...project, type: detection.type };
+      const projectZip = await generateFullAndroidGradleProjectZip(buildProject);
+      if (projectZip.size > 30 * 1024 * 1024) {
+        throw new Error('Bulut derleme için ZIP boyutu en fazla 30 MB olabilir.');
+      }
+      const archiveBase64 = await blobToBase64(projectZip);
       const response = await fetch('/api/build/cloud/trigger', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-APK-Studio-Key': apiKey },
-        body: JSON.stringify({
-          projectPath,
-          buildVariant,
-          projectConfig: project.config
-        })
+        body: JSON.stringify({ archiveBase64, buildVariant, projectName: project.name })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
