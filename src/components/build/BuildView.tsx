@@ -65,11 +65,30 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
   const handleCloudBuild = async () => {
     setCloudBuilding(true);
     setMessage(null);
+    setBuildLogs([]);
     try {
-      const result = await BuildApiService.triggerCloudBuild(project, apiKey, buildVariant);
-      setMessage(result.success
-        ? { kind: 'success', text: result.message, url: result.workflowUrl }
-        : { kind: 'error', text: result.message });
+      const result = await BuildApiService.triggerCloudBuild(project, apiKey, buildVariant, progress => {
+        setMessage({
+          kind: 'info',
+          text: progress.message || 'GitHub Actions derlemesi sürüyor.',
+          url: progress.workflowUrl
+        });
+        setBuildLogs(progress.logs || []);
+      });
+      setBuildLogs(result.logs || []);
+      if (result.success && result.apk) {
+        const safeName = project.config.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        triggerDownload(result.apk, `${safeName || 'app'}-${buildVariant}.apk`);
+        setMessage({
+          kind: 'success',
+          text: 'APK derlendi ve indirme başlatıldı.',
+          url: result.workflowUrl
+        });
+      } else {
+        setMessage({ kind: 'error', text: result.message, url: result.workflowUrl });
+      }
+    } catch (error: any) {
+      setMessage({ kind: 'error', text: error?.message || 'Cloud Build başarısız oldu.' });
     } finally {
       setCloudBuilding(false);
     }
@@ -182,7 +201,7 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
       {buildLogs.length > 0 && (
         <section className="glass-panel rounded-2xl border border-white/10 p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2"><Terminal className="w-4 h-4 text-cyan-300" /> Yerel Derleme Günlükleri</h3>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2"><Terminal className="w-4 h-4 text-cyan-300" /> Derleme Günlükleri</h3>
             <span className="text-[10px] text-slate-500">{buildLogs.length} satır</span>
           </div>
           <div className="max-h-72 overflow-y-auto rounded-xl bg-[#080a10] border border-white/5 p-3 space-y-1" role="log" aria-label="Gradle derleme günlükleri">
