@@ -18,6 +18,13 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
   const [toolchain, setToolchain] = useState<ToolchainStatus | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [buildVariant, setBuildVariant] = useState<'debug' | 'release'>('debug');
+  const [backendUrl, setBackendUrl] = useState(() => {
+    try {
+      return window.localStorage.getItem('apk-studio-backend-url') || '';
+    } catch {
+      return '';
+    }
+  });
   const [apiKey, setApiKey] = useState('');
   const [loadingCheck, setLoadingCheck] = useState(true);
   const [localBuilding, setLocalBuilding] = useState(false);
@@ -129,6 +136,27 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
       )}
 
       <section className="glass-panel rounded-2xl border border-white/10 p-4 space-y-2">
+        <label htmlFor="apk-backend-url" className="text-xs font-semibold text-slate-200">Build backend adresi</label>
+        <input
+          id="apk-backend-url"
+          type="url"
+          autoComplete="url"
+          value={backendUrl}
+          onChange={event => {
+            const value = event.target.value;
+            setBackendUrl(value);
+            try {
+              const normalized = value.trim().replace(/\\/+$/, '');
+              if (normalized) window.localStorage.setItem('apk-studio-backend-url', normalized);
+              else window.localStorage.removeItem('apk-studio-backend-url');
+            } catch {
+              // The address remains usable for this screen even if storage is disabled.
+            }
+          }}
+          placeholder="https://apk-studio-backend.onrender.com"
+          className="w-full bg-[#0b0d14] border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-purple-500"
+        />
+        <p className="text-[10px] text-slate-500">GitHub Pages veya kurulu APK kullanıyorsan Express backend adresini gir. Boş bırakılırsa aynı sunucudaki /api adresi kullanılır. Adres bu cihazda saklanır.</p>
         <label htmlFor="apk-build-api-key" className="text-xs font-semibold text-slate-200">Build API anahtarı</label>
         <input id="apk-build-api-key" type="password" autoComplete="off" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Sunucudaki APK_STUDIO_BUILD_API_KEY değeri" className="w-full bg-[#0b0d14] border border-white/10 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-purple-500" />
         <p className="text-[10px] text-slate-500">Bu anahtar yalnızca bu oturumda tutulur. GitHub erişim token'ı değildir; GitHub token sunucuda ayrı saklanır.</p>
