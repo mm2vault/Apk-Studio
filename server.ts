@@ -28,6 +28,36 @@ async function startServer() {
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   const isProduction = process.env.NODE_ENV === 'production';
 
+  const allowedOrigins = new Set([
+    'capacitor://localhost',
+    'http://localhost',
+    'https://localhost',
+    ...(process.env.APK_STUDIO_ALLOWED_ORIGINS || '')
+      .split(',')
+      .map(origin => origin.trim())
+      .filter(Boolean)
+  ]);
+
+  // The Android WebView and a separately hosted GitHub Pages frontend need explicit CORS.
+  // Only configured origins are allowed; no wildcard origin or credentialed requests are used.
+  app.use((req, res, next) => {
+    const origin = req.get('origin');
+    const isAllowedOrigin = Boolean(origin && allowedOrigins.has(origin));
+
+    if (isAllowedOrigin && origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-APK-Studio-Key, Cache-Control');
+      res.setHeader('Access-Control-Max-Age', '600');
+    }
+
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(isAllowedOrigin ? 204 : 403);
+    }
+    next();
+  });
+
   app.use(express.json({ limit: '75mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
