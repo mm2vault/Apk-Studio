@@ -28,7 +28,7 @@ function apiUrl(path: string): string {
   } catch {
     // Relative same-origin API remains available when browser storage is disabled.
   }
-  return `${base.replace(/\\/+$/, '')}${path}`;
+  return `${base.replace(/\/+$/, '')}${path}`;
 }
 
 export interface LocalBuildResponse {
