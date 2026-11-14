@@ -17,6 +17,20 @@ export interface CloudBuildResponse extends LocalBuildResponse {
 
 const wait = (milliseconds: number) => new Promise(resolve => setTimeout(resolve, milliseconds));
 
+const BACKEND_URL_STORAGE_KEY = 'apk-studio-backend-url';
+
+function apiUrl(path: string): string {
+  let base = '';
+  try {
+    if (typeof window !== 'undefined') {
+      base = window.localStorage.getItem(BACKEND_URL_STORAGE_KEY)?.trim() || '';
+    }
+  } catch {
+    // Relative same-origin API remains available when browser storage is disabled.
+  }
+  return `${base.replace(/\\/+$/, '')}${path}`;
+}
+
 export interface LocalBuildResponse {
   success: boolean;
   message: string;
@@ -93,7 +107,7 @@ function decodeBuildLogs(encoded: string | null): BuildLog[] {
 export const BuildApiService = {
   async checkSystemToolchain(): Promise<ToolchainStatus> {
     try {
-      const response = await fetch('/api/system/check');
+      const response = await fetch(apiUrl('/api/system/check'));
       if (!response.ok) throw new Error(`Sunucu yanıt vermedi: ${response.statusText}`);
       return await response.json();
     } catch (err: any) {
@@ -113,7 +127,7 @@ export const BuildApiService = {
   async validateProject(project: Project): Promise<ValidationResult> {
     const detection = detectProjectType(project.files);
     try {
-      const response = await fetch('/api/build/validate', {
+      const response = await fetch(apiUrl('/api/build/validate'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -174,7 +188,7 @@ export const BuildApiService = {
     try {
       const projectZip = await generateFullAndroidGradleProjectZip({ ...project, type: detectProjectType(project.files).type });
       const archiveBase64 = await blobToBase64(projectZip);
-      const response = await fetch('/api/build/local', {
+      const response = await fetch(apiUrl('/api/build/local'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-APK-Studio-Key': apiKey },
         body: JSON.stringify({ archiveBase64, fileName: `${project.id}.zip` })
@@ -223,7 +237,7 @@ export const BuildApiService = {
       }
 
       const archiveBase64 = await blobToBase64(projectZip);
-      const response = await fetch('/api/build/cloud/trigger', {
+      const response = await fetch(apiUrl('/api/build/cloud/trigger'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-APK-Studio-Key': apiKey },
         body: JSON.stringify({ archiveBase64, buildVariant, projectName: project.name })
@@ -245,7 +259,7 @@ export const BuildApiService = {
 
       const deadline = Date.now() + 50 * 60 * 1000;
       while (Date.now() < deadline) {
-        const statusResponse = await fetch('/api/build/cloud/status/' + encodeURIComponent(dispatch.branch), {
+        const statusResponse = await fetch(apiUrl('/api/build/cloud/status/' + encodeURIComponent(dispatch.branch)), {
           headers: { 'X-APK-Studio-Key': apiKey, 'Cache-Control': 'no-store' }
         });
         const status = await statusResponse.json().catch(() => ({}));
@@ -276,7 +290,7 @@ export const BuildApiService = {
             };
           }
 
-          const artifactResponse = await fetch('/api/build/cloud/artifact/' + encodeURIComponent(String(status.artifactId)), {
+          const artifactResponse = await fetch(apiUrl('/api/build/cloud/artifact/' + encodeURIComponent(String(status.artifactId))), {
             headers: { 'X-APK-Studio-Key': apiKey, 'Cache-Control': 'no-store' }
           });
           if (!artifactResponse.ok) {
