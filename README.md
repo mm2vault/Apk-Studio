@@ -78,7 +78,7 @@ Cloud Build, APK Studio'nun kendi uygulamasını derlemekten ayrıdır. Kullanı
    - `APK_STUDIO_BUILD_API_KEY=<uzun-rastgele-gizli-değer>`
 5. APK Studio uygulamasında Derle ekranına backend'in `APK_STUDIO_BUILD_API_KEY` değerini gir ve Cloud APK Oluştur düğmesine bas.
 
-APK Studio en fazla 30 MB'lık Gradle ZIP arşivini özel depoda benzersiz bir geçici dala yükler, workflow'u başlatır ve işlem sonunda dalı siler. Derlenen APK, GitHub Actions çalışmasının **Artifacts** bölümünde 7 gün tutulur. Şu an bulut APK'sını uygulama içinden otomatik indirme/polling akışı henüz yoktur; Actions sayfasından indirmen gerekir. Geçici dal silme adımı başarısız olursa dalı özel depodan elle silebilirsin.
+APK Studio en fazla 30 MB'lık Gradle ZIP arşivini özel depoda benzersiz bir geçici dala yükler ve workflow'u başlatır. Derleme ekranı GitHub Actions durumunu backend üzerinden takip eder, job durumlarını/günlüklerini gösterir, 7 gün saklanan artifact ZIP'ini sunucu üzerinden indirir ve içindeki APK dosyasını telefona indirmeyi başlatır. GitHub tokeni tarayıcıya gönderilmez. Uygulama veya sayfa derleme bitmeden kapatılırsa APK'yı özel build deposundaki Actions > Artifacts bölümünden elle indirebilirsin. Workflow geçici dalı başarıda veya hatada temizlemeye çalışır; cleanup adımı başarısız olursa dalı özel depodan elle silebilirsin.
 
 Cloud Build yalnızca geçerli Android Gradle projesini derler. HTML/CSS/JS projeleri APK Studio tarafından önce WebView tabanlı Gradle projesine dönüştürülür. Lua/Python kaynakları tek başına otomatik APK üretmez; ilgili Android runtime gerekir. Release APK'nın yüklenebilir olması için kullanıcı projesinin kendi Gradle signingConfig ayarı yapılmış olmalıdır; APK Studio'nun imza anahtarı kullanıcı projesine otomatik eklenmez.
 
