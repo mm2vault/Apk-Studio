@@ -63,38 +63,28 @@ base64 -w 0 apk-studio-release.jks
 
 ### Kullanıcı projeleri için gerçek Cloud Build kurulumu
 
-Cloud Build, APK Studio'nun kendi uygulamasını derlemekten ayrıdır. Kullanıcının içe aktardığı proje ZIP'i Express backend üzerinden özel build deposuna gönderilir ve GitHub Actions üzerinde derlenir.
+Cloud Build, APK Studio'nun kendi uygulamasını derlemekten ayrıdır. İçe aktarılan proje ZIP'i Express backend üzerinden özel build deposuna gönderilir ve GitHub Actions üzerinde derlenir.
 
-#### Backend'i Render üzerinde yayınlama
+1. GitHub'da yalnızca bu iş için yeni bir **PRIVATE** depo oluştur. Örnek: `owner/apk-studio-build`. Kullanıcı projeleri public `mm2vault/Apk-Studio` deposuna gönderilmez.
+2. Özel depoda `.github/workflows/build-user-project.yml` dosyasını oluştur ve APK Studio'daki [workflow şablonunun](templates/build-user-project.yml) tamamını buraya kopyala.
+3. Fine-grained Personal Access Token oluştur. Yalnızca bu özel depoya erişim ver:
+   - **Contents: Read and write** (geçici dal ve ZIP yüklemek/silmek için)
+   - **Actions: Read and write** (workflow başlatmak ve durum/artifact okumak için)
+   - Metadata: Read
+4. [Render](https://render.com/) üzerinde **New > Blueprint** seçip bu APK Studio deposunu bağla. Kök dizindeki `render.yaml` Express backend'i yayınlamak için hazırlandı. Blueprint kurulumu sırasında:
+   - `GITHUB_BUILD_REPOSITORY=owner/apk-studio-build`
+   - `GITHUB_TOKEN=<fine-grained token>`
+   - `APK_STUDIO_BUILD_API_KEY` otomatik üretilir.
+   - `APK_STUDIO_ALLOWED_ORIGINS` varsayılan olarak `https://mm2vault.github.io` değerini kullanır.
+5. Deploy tamamlanınca Render servisinin `https://....onrender.com` adresini ve `APK_STUDIO_BUILD_API_KEY` değerini al. APK Studio uygulamasında **Derle** ekranına ikisini gir. Backend adresi bu cihazda saklanır; Build API anahtarı yalnızca açık oturumda tutulur.
 
-1. Önce aşağıdaki özel build deposunu ve workflow dosyasını hazırla.
-2. [Render](https://render.com/) hesabında **New > Blueprint** seçip bu APK Studio deposunu bağla. Render kökteki `render.yaml` dosyasını kullanarak Express backend'i yayınlar.
-3. Blueprint kurulumu sırasında `GITHUB_BUILD_REPOSITORY` ve `GITHUB_TOKEN` değerlerini gir. `APK_STUDIO_BUILD_API_KEY` otomatik üretilir.
-4. Deploy tamamlanınca Render servisinin `https://....onrender.com` adresini ve üretilen `APK_STUDIO_BUILD_API_KEY` değerini al.
-5. APK Studio uygulamasında **Derle** ekranında backend adresini ve Build API anahtarını gir. Backend adresi bu cihazda saklanır; Build API anahtarı yalnızca açık oturumda tutulur.
-6. GitHub Pages için izin verilen origin varsayılan olarak `https://mm2vault.github.io` ayarlıdır. Farklı bir web alan adı kullanıyorsan Render'daki `APK_STUDIO_ALLOWED_ORIGINS` değişkenine tam origin'i (şema ve alan adı, yol olmadan) ekle. Android Capacitor WebView için `https://localhost` origin'i backend'de önceden izinlidir.
-
-Render ücretsiz servisi boşta kaldığında uykuya geçebilir; ilk istek soğuk başlatma nedeniyle yavaş olabilir. Backend URL'si aynı cihazdaki uygulamada bir kez girildikten sonra saklanır.
-
-1. GitHub'da yalnızca bu iş için **yeni bir PRIVATE depo** oluştur. Public `mm2vault/Apk-Studio` deposuna kullanıcı projeleri yüklenmez.
-2. Bu depoda `.github/workflows/build-user-project.yml` dosyasını oluştur ve APK Studio'daki [workflow şablonunun](templates/build-user-project.yml) tamamını içine kopyala.
-3. Fine-grained Personal Access Token oluştur. Yalnızca bu özel depoya erişim ver ve şu izinleri aç:
-   - **Contents: Read and write** (geçici proje dalı ve ZIP yüklemek/silmek için)
-   - **Actions: Read and write** (workflow başlatmak için)
-   - Metadata: Read (GitHub'ın temel depo erişimi)
-4. APK Studio Express backend sunucusuna şu ortam değişkenlerini ekle:
-   - `GITHUB_BUILD_REPOSITORY=owner/private-apk-build`
-   - `GITHUB_TOKEN=<token>`
-   - `GITHUB_BUILD_REF=main`
-   - `APK_STUDIO_BUILD_API_KEY=<uzun-rastgele-gizli-değer>`
-5. APK Studio uygulamasında Derle ekranına Render backend adresini ve `APK_STUDIO_BUILD_API_KEY` değerini gir, ardından Cloud APK Oluştur düğmesine bas.
+Farklı bir web alan adı kullanıyorsan Render'daki `APK_STUDIO_ALLOWED_ORIGINS` değişkenine tam origin'i (şema ve alan adı, yol olmadan) ekle. Android Capacitor WebView için `https://localhost` origin'i backend'de önceden izinlidir. Render ücretsiz servisi boşta kaldığında uykuya geçebilir; ilk istek soğuk başlatma nedeniyle yavaş olabilir.
 
 APK Studio en fazla 30 MB'lık Gradle ZIP arşivini özel depoda benzersiz bir geçici dala yükler ve workflow'u başlatır. Derleme ekranı GitHub Actions durumunu backend üzerinden takip eder, job durumlarını ve başarısız derleme günlüklerini gösterir, 7 gün saklanan artifact ZIP'ini sunucu üzerinden indirir ve içindeki APK dosyasını telefona indirmeyi başlatır. GitHub tokeni tarayıcıya gönderilmez. Uygulama veya sayfa derleme bitmeden kapatılırsa APK'yı özel build deposundaki Actions > Artifacts bölümünden elle indirebilirsin. Workflow geçici dalı başarıda veya hatada temizlemeye çalışır; cleanup adımı başarısız olursa dalı özel depodan elle silebilirsin.
 
-Cloud Build yalnızca geçerli Android Gradle projesini derler. HTML/CSS/JS projeleri APK Studio tarafından önce WebView tabanlı Gradle projesine dönüştürülür. Lua/Python kaynakları tek başına otomatik APK üretmez; ilgili Android runtime gerekir. Release APK'nın yüklenebilir olması için kullanıcı projesinin kendi Gradle signingConfig ayarı yapılmış olmalıdır; APK Studio'nun imza anahtarı kullanıcı projesine otomatik eklenmez.
+Cloud Build yalnızca geçerli Android Gradle projesini derler. HTML/CSS/JS projeleri APK Studio tarafından önce WebView tabanlı Gradle projesine dönüştürülür. Lua/Python kaynakları tek başına otomatik APK üretmez; ilgili Android runtime gerekir. Release APK'nın yüklenebilir olması için kullanıcı projesinin kendi Gradle `signingConfig` ayarı yapılmış olmalıdır; APK Studio'nun imza anahtarı kullanıcı projelerine otomatik eklenmez.
 
-GitHub tokeni veya başka gizli anahtarlar hiçbir zaman React/Vite istemci koduna, APK içine, README'ye, loglara ya da Git geçmişine eklenmemelidir. Token yalnızca Express sunucusunun ortamında kalır. Kullanıcı kaynak kodu public depoya gönderilmez.
-
+GitHub tokeni veya başka gizli anahtarlar hiçbir zaman React/Vite istemci koduna, APK içine, README'ye veya loglara eklenmemelidir. Token yalnızca Express backend ortamında kalır. Kullanıcı kaynak kodu public depoya gönderilmez.
 Yerel derleme, yüklenen Gradle betiklerini çalıştırabildiği için varsayılan olarak kapalıdır. Güvenilmeyen/public sunucularda açılmamalıdır.
 
 ---
