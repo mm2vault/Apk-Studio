@@ -195,7 +195,7 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
           </div>
           <div className="rounded-xl bg-black/30 border border-white/5 p-3 space-y-1">
             <p className="text-[11px] text-slate-200">Bu projedeki dosyalar otomatik olarak Gradle ZIP'e hazırlanır ve özel GitHub build deposuna geçici bir dala yüklenir.</p>
-            <p className="text-[10px] text-slate-500">İşlem bitince geçici dal silinir. APK, GitHub Actions çalışmasının Artifacts bölümünde 7 gün tutulur.</p>
+            <p className="text-[10px] text-slate-500">APK Studio derlemeyi takip eder ve hazır olduğunda APK'yı otomatik indirir. Artifact GitHub Actions'ta 7 gün yedek olarak tutulur.</p>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <button type="button" onClick={() => setBuildVariant('debug')} className={`rounded-lg py-2 text-xs font-semibold border ${buildVariant === 'debug' ? 'bg-purple-600/20 border-purple-400 text-purple-200' : 'bg-white/5 border-white/10 text-slate-400'}`}>Debug APK</button>
