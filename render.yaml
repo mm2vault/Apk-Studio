@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: apk-studio-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install --no-audit --no-fund && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/system/check
+    envVars:
+      - key: NODE_VERSION
+        value: 22.14.0
+      - key: NODE_ENV
+        value: production
+      - key: GITHUB_BUILD_REPOSITORY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_BUILD_REF
+        value: main
+      - key: APK_STUDIO_BUILD_API_KEY
+        generateValue: true
+      - key: APK_STUDIO_ALLOWED_ORIGINS
+        value: https://mm2vault.github.io
+      - key: APK_STUDIO_ENABLE_LOCAL_BUILD
+        value: "false"
