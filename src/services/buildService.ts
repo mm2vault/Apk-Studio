@@ -1,6 +1,21 @@
 import { Project, BuildLog, ToolchainStatus, ValidationResult } from '../types/project';
+import JSZip from 'jszip';
 import { generateFullAndroidGradleProjectZip } from './fileService';
 import { detectProjectType } from './typeDetector';
+
+export interface CloudBuildProgress {
+  status?: string;
+  message?: string;
+  workflowUrl?: string;
+  logs?: BuildLog[];
+}
+
+export interface CloudBuildResponse extends LocalBuildResponse {
+  workflowUrl?: string;
+  apkFileName?: string;
+}
+
+const wait = (milliseconds: number) => new Promise(resolve => setTimeout(resolve, milliseconds));
 
 export interface LocalBuildResponse {
   success: boolean;
@@ -193,7 +208,12 @@ export const BuildApiService = {
     }
   },
 
-  async triggerCloudBuild(project: Project, apiKey = '', buildVariant: 'debug' | 'release' = 'debug'): Promise<any> {
+  async triggerCloudBuild(
+    project: Project,
+    apiKey = '',
+    buildVariant: 'debug' | 'release' = 'debug',
+    onProgress?: (progress: CloudBuildProgress) => void
+  ): Promise<CloudBuildResponse> {
     try {
       const detection = detectProjectType(project.files);
       const buildProject = { ...project, type: detection.type };
@@ -201,24 +221,117 @@ export const BuildApiService = {
       if (projectZip.size > 30 * 1024 * 1024) {
         throw new Error('Bulut derleme için ZIP boyutu en fazla 30 MB olabilir.');
       }
+
       const archiveBase64 = await blobToBase64(projectZip);
       const response = await fetch('/api/build/cloud/trigger', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-APK-Studio-Key': apiKey },
         body: JSON.stringify({ archiveBase64, buildVariant, projectName: project.name })
       });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
+      const dispatch = await response.json().catch(() => ({}));
+      if (!response.ok || !dispatch.success || typeof dispatch.branch !== 'string') {
         return {
           success: false,
-          message: data.message || `GitHub Actions tetiklenemedi (HTTP ${response.status}).`
+          message: dispatch.message || ('GitHub Actions tetiklenemedi (HTTP ' + response.status + ').')
         };
       }
-      return data;
+
+      const workflowUrl = typeof dispatch.workflowUrl === 'string' ? dispatch.workflowUrl : undefined;
+      onProgress?.({
+        status: 'dispatched',
+        message: 'Proje özel build deposuna yüklendi. GitHub Actions derlemesi bekleniyor.',
+        workflowUrl
+      });
+
+      const deadline = Date.now() + 50 * 60 * 1000;
+      while (Date.now() < deadline) {
+        const statusResponse = await fetch('/api/build/cloud/status/' + encodeURIComponent(dispatch.branch), {
+          headers: { 'X-APK-Studio-Key': apiKey, 'Cache-Control': 'no-store' }
+        });
+        const status = await statusResponse.json().catch(() => ({}));
+        if (!statusResponse.ok || !status.success) {
+          return {
+            success: false,
+            message: status.message || ('Cloud Build durumu okunamadı (HTTP ' + statusResponse.status + ').'),
+            workflowUrl: status.workflowUrl || workflowUrl,
+            logs: Array.isArray(status.logs) ? status.logs : []
+          };
+        }
+
+        const progress: CloudBuildProgress = {
+          status: status.status,
+          message: status.message || 'GitHub Actions derlemesi sürüyor.',
+          workflowUrl: status.workflowUrl || workflowUrl,
+          logs: Array.isArray(status.logs) ? status.logs : []
+        };
+        onProgress?.(progress);
+
+        if (status.status === 'completed') {
+          if (status.conclusion !== 'success' || !status.artifactId) {
+            return {
+              success: false,
+              message: status.message || 'Cloud Build tamamlandı, ancak APK çıktısı alınamadı.',
+              workflowUrl: progress.workflowUrl,
+              logs: progress.logs
+            };
+          }
+
+          const artifactResponse = await fetch('/api/build/cloud/artifact/' + encodeURIComponent(String(status.artifactId)), {
+            headers: { 'X-APK-Studio-Key': apiKey, 'Cache-Control': 'no-store' }
+          });
+          if (!artifactResponse.ok) {
+            const error = await artifactResponse.json().catch(() => ({}));
+            return {
+              success: false,
+              message: error.message || ('APK artifact indirilemedi (HTTP ' + artifactResponse.status + ').'),
+              workflowUrl: progress.workflowUrl,
+              logs: progress.logs
+            };
+          }
+
+          const artifactZip = await JSZip.loadAsync(await artifactResponse.blob());
+          const apkEntries = Object.values(artifactZip.files)
+            .filter(entry => !entry.dir && entry.name.toLowerCase().endsWith('.apk'))
+            .sort((a, b) => {
+              const score = (name: string) => /universal/i.test(name) ? 0
+                : /app-(debug|release)\.apk$/i.test(name) ? 1 : 2;
+              return score(a.name) - score(b.name);
+            });
+
+          if (apkEntries.length === 0) {
+            return {
+              success: false,
+              message: 'GitHub artifact indirildi, ancak ZIP içinde APK dosyası bulunamadı.',
+              workflowUrl: progress.workflowUrl,
+              logs: progress.logs
+            };
+          }
+
+          const apkEntry = apkEntries[0];
+          const apk = await apkEntry.async('blob');
+          return {
+            success: true,
+            message: 'APK başarıyla derlendi ve telefona indirmeye hazır.',
+            workflowUrl: progress.workflowUrl,
+            apkFileName: apkEntry.name.split('/').pop() || ('app-' + buildVariant + '.apk'),
+            apk,
+            logs: progress.logs
+          };
+        }
+
+        await wait(10000);
+      }
+
+      return {
+        success: false,
+        message: 'Cloud Build 50 dakika içinde tamamlanmadı. GitHub Actions sayfasından işlemi kontrol edebilirsiniz.',
+        workflowUrl
+      };
     } catch (err: any) {
       return {
         success: false,
-        message: `Bulut derleme servisine bağlanılamadı: ${err?.message || 'Bilinmeyen hata'}`
+        errorType: 'CLOUD_BUILD_FAILED',
+        message: 'Bulut derleme servisine bağlanılamadı: ' + (err?.message || 'Bilinmeyen hata')
       };
     }
   }
