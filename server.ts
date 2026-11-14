@@ -607,6 +607,228 @@ jobs:
     }
   });
 
+  // API 6: Poll a private GitHub Actions build and expose its artifact through the authenticated backend.
+  app.get('/api/build/cloud/status/:branch', async (req, res) => {
+    if (!isAuthorizedBuildRequest(req)) {
+      return res.status(401).json({ success: false, message: 'Build API anahtarı gerekli veya geçersiz.' });
+    }
+
+    const branch = req.params.branch || '';
+    if (!/^apk-studio-build-[a-f0-9-]{36}$/.test(branch)) {
+      return res.status(400).json({ success: false, message: 'Geçersiz geçici build kimliği.' });
+    }
+
+    const repository = process.env.GITHUB_BUILD_REPOSITORY || '';
+    const token = process.env.GITHUB_TOKEN || '';
+    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) || !token) {
+      return res.status(503).json({ success: false, message: 'Cloud Build sunucu yapılandırması eksik.' });
+    }
+
+    const apiBase = `https://api.github.com/repos/${repository}`;
+    const headers = {
+      'Accept': 'application/vnd.github+json',
+      'Authorization': `Bearer ${token}`,
+      'X-GitHub-Api-Version': '2022-11-28'
+    };
+    const apiRequest = (endpoint: string) => fetch(`${apiBase}${endpoint}`, { headers });
+
+    try {
+      const runsResponse = await apiRequest(`/actions/workflows/build-user-project.yml/runs?branch=${encodeURIComponent(branch)}&event=workflow_dispatch&per_page=10`);
+      if (!runsResponse.ok) {
+        const detail = await runsResponse.text();
+        return res.status(runsResponse.status).json({
+          success: false,
+          message: `GitHub derleme durumu okunamadı (HTTP ${runsResponse.status}). Token için Actions: Read izni gerekir. ${detail.slice(0, 180)}`
+        });
+      }
+
+      const runsData = await runsResponse.json() as { workflow_runs?: Array<{
+        id: number;
+        head_branch: string;
+        status: string;
+        conclusion: string | null;
+        html_url: string;
+        run_number: number;
+      }> };
+      const run = (runsData.workflow_runs || []).find(item => item.head_branch === branch);
+
+      if (!run) {
+        return res.json({
+          success: true,
+          status: 'queued',
+          message: 'GitHub Actions çalışması sıraya alınıyor. Birkaç saniye içinde tekrar kontrol edilecek.'
+        });
+      }
+
+      const jobsResponse = await apiRequest(`/actions/runs/${run.id}/jobs?per_page=100`);
+      const jobsData = jobsResponse.ok
+        ? await jobsResponse.json() as { jobs?: Array<{ id: number; name: string; status: string; conclusion: string | null }> }
+        : { jobs: [] };
+      const jobs = jobsData.jobs || [];
+      const timestamp = new Date().toISOString();
+      const logs: Array<{ id: string; timestamp: string; level: 'info' | 'warn' | 'error' | 'success'; message: string; step: string }> = jobs.map((job, index) => ({
+        id: `cloud-job-${job.id || index}`,
+        timestamp,
+        level: job.conclusion === 'failure' ? 'error' as const
+          : job.conclusion === 'success' ? 'success' as const : 'info' as const,
+        message: `${job.name}: ${job.status}${job.conclusion ? ` (${job.conclusion})` : ''}`,
+        step: job.name
+      }));
+
+      if (run.status !== 'completed') {
+        return res.json({
+          success: true,
+          status: run.status,
+          runId: run.id,
+          workflowUrl: run.html_url,
+          jobs: jobs.map(job => ({ name: job.name, status: job.status, conclusion: job.conclusion })),
+          logs,
+          message: run.status === 'queued'
+            ? 'GitHub Actions derlemeyi sıraya aldı.'
+            : 'Android Gradle APK derlemesi GitHub sunucusunda çalışıyor.'
+        });
+      }
+
+      if (run.conclusion !== 'success') {
+        // GitHub returns a ZIP archive for job logs. Read only the last lines of failed jobs.
+        for (const job of jobs.filter(item => item.conclusion === 'failure').slice(0, 2)) {
+          try {
+            const jobLogsResponse = await apiRequest(`/actions/jobs/${job.id}/logs`);
+            if (!jobLogsResponse.ok) continue;
+            const logBytes = Buffer.from(await jobLogsResponse.arrayBuffer());
+            if (logBytes.length > 25 * 1024 * 1024) continue;
+            const logArchive = await JSZip.loadAsync(logBytes);
+            const textEntries = Object.values(logArchive.files).filter(entry => !entry.dir && entry.name.toLowerCase().endsWith('.txt'));
+            for (const entry of textEntries) {
+              const lines = (await entry.async('string')).split(/\\r?\\n/).filter(Boolean).slice(-60);
+              for (const [index, line] of lines.entries()) {
+                logs.push({
+                  id: `cloud-log-${job.id}-${index}`,
+                  timestamp: new Date().toISOString(),
+                  level: /\\b(error|failed|exception)\\b/i.test(line) ? 'error'
+                    : /\\bwarn(ing)?\\b/i.test(line) ? 'warn' : 'info',
+                  message: line.slice(0, 700),
+                  step: job.name
+                });
+              }
+            }
+          } catch {
+            // Keep the job summary when GitHub no longer retains the detailed logs.
+          }
+        }
+
+        return res.json({
+          success: true,
+          status: 'completed',
+          conclusion: run.conclusion,
+          runId: run.id,
+          workflowUrl: run.html_url,
+          jobs: jobs.map(job => ({ name: job.name, status: job.status, conclusion: job.conclusion })),
+          logs,
+          message: `Cloud Build başarısız oldu: ${run.conclusion || 'bilinmeyen sonuç'}. Günlüklerdeki ilk hata satırını kontrol edin.`
+        });
+      }
+
+      const artifactsResponse = await apiRequest(`/actions/runs/${run.id}/artifacts?per_page=100`);
+      if (!artifactsResponse.ok) {
+        return res.status(502).json({ success: false, message: 'Derleme başarılı, ancak APK artifact listesi GitHub üzerinden okunamadı.' });
+      }
+      const artifactsData = await artifactsResponse.json() as { artifacts?: Array<{ id: number; name: string; expired: boolean }> };
+      const artifact = (artifactsData.artifacts || []).find(item =>
+        !item.expired && item.name.startsWith('apk-studio-user-')
+      );
+
+      if (!artifact) {
+        return res.json({
+          success: false,
+          status: 'completed',
+          conclusion: 'success',
+          runId: run.id,
+          workflowUrl: run.html_url,
+          logs,
+          message: 'Gradle işlemi başarılı görünüyor, ancak indirilebilir APK artifact bulunamadı.'
+        });
+      }
+
+      logs.push({
+        id: `cloud-artifact-${artifact.id}`,
+        timestamp: new Date().toISOString(),
+        level: 'success',
+        message: `APK artifact hazır: ${artifact.name}`,
+        step: 'APK çıktısı'
+      });
+
+      return res.json({
+        success: true,
+        status: 'completed',
+        conclusion: 'success',
+        runId: run.id,
+        workflowUrl: run.html_url,
+        artifactId: artifact.id,
+        artifactName: artifact.name,
+        logs,
+        message: 'APK derlemesi tamamlandı. APK dosyası güvenli sunucu bağlantısı üzerinden indiriliyor.'
+      });
+    } catch (error: any) {
+      return res.status(502).json({
+        success: false,
+        message: error?.message || 'Cloud Build durumu kontrol edilirken hata oluştu.'
+      });
+    }
+  });
+
+  // Private Actions artifacts are proxied through this authenticated route; the GitHub token never reaches the browser.
+  app.get('/api/build/cloud/artifact/:artifactId', async (req, res) => {
+    if (!isAuthorizedBuildRequest(req)) {
+      return res.status(401).json({ success: false, message: 'Build API anahtarı gerekli veya geçersiz.' });
+    }
+
+    const artifactId = req.params.artifactId || '';
+    if (!/^\\d{1,18}$/.test(artifactId)) {
+      return res.status(400).json({ success: false, message: 'Geçersiz APK artifact kimliği.' });
+    }
+
+    const repository = process.env.GITHUB_BUILD_REPOSITORY || '';
+    const token = process.env.GITHUB_TOKEN || '';
+    if (!/^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$/.test(repository) || !token) {
+      return res.status(503).json({ success: false, message: 'Cloud Build sunucu yapılandırması eksik.' });
+    }
+
+    try {
+      const artifactResponse = await fetch(`https://api.github.com/repos/${repository}/actions/artifacts/${artifactId}/zip`, {
+        headers: {
+          'Accept': 'application/vnd.github+json',
+          'Authorization': `Bearer ${token}`,
+          'X-GitHub-Api-Version': '2022-11-28'
+        }
+      });
+      if (!artifactResponse.ok) {
+        const detail = await artifactResponse.text();
+        return res.status(artifactResponse.status).json({
+          success: false,
+          message: `APK artifact indirilemedi (HTTP ${artifactResponse.status}). ${detail.slice(0, 180)}`
+        });
+      }
+
+      const archive = Buffer.from(await artifactResponse.arrayBuffer());
+      if (archive.length < 22 || archive.length > 250 * 1024 * 1024
+        || archive[0] !== 0x50 || archive[1] !== 0x4b) {
+        return res.status(413).json({ success: false, message: 'GitHub artifact ZIP dosyası geçersiz veya 250 MB sınırını aşıyor.' });
+      }
+
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', 'attachment; filename="apk-studio-build-artifact.zip"');
+      res.setHeader('Content-Length', String(archive.length));
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(archive);
+    } catch (error: any) {
+      return res.status(502).json({
+        success: false,
+        message: error?.message || 'APK artifact indirme işlemi başarısız oldu.'
+      });
+    }
+  });
+
   // Setup Vite middlewares in development or serve static in production
   if (!isProduction) {
     const vite = await createViteServer({
