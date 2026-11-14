@@ -63,7 +63,18 @@ base64 -w 0 apk-studio-release.jks
 
 ### Kullanıcı projeleri için gerçek Cloud Build kurulumu
 
-Cloud Build, APK Studio'nun kendi uygulamasını derlemekten ayrıdır. Kullanıcının içe aktardığı proje ZIP'i otomatik olarak sunucuya gönderilir ve GitHub Actions üzerinde derlenir.
+Cloud Build, APK Studio'nun kendi uygulamasını derlemekten ayrıdır. Kullanıcının içe aktardığı proje ZIP'i Express backend üzerinden özel build deposuna gönderilir ve GitHub Actions üzerinde derlenir.
+
+#### Backend'i Render üzerinde yayınlama
+
+1. Önce aşağıdaki özel build deposunu ve workflow dosyasını hazırla.
+2. [Render](https://render.com/) hesabında **New > Blueprint** seçip bu APK Studio deposunu bağla. Render kökteki `render.yaml` dosyasını kullanarak Express backend'i yayınlar.
+3. Blueprint kurulumu sırasında `GITHUB_BUILD_REPOSITORY` ve `GITHUB_TOKEN` değerlerini gir. `APK_STUDIO_BUILD_API_KEY` otomatik üretilir.
+4. Deploy tamamlanınca Render servisinin `https://....onrender.com` adresini ve üretilen `APK_STUDIO_BUILD_API_KEY` değerini al.
+5. APK Studio uygulamasında **Derle** ekranında backend adresini ve Build API anahtarını gir. Backend adresi bu cihazda saklanır; Build API anahtarı yalnızca açık oturumda tutulur.
+6. GitHub Pages için izin verilen origin varsayılan olarak `https://mm2vault.github.io` ayarlıdır. Farklı bir web alan adı kullanıyorsan Render'daki `APK_STUDIO_ALLOWED_ORIGINS` değişkenine tam origin'i (şema ve alan adı, yol olmadan) ekle. Android Capacitor WebView için `https://localhost` origin'i backend'de önceden izinlidir.
+
+Render ücretsiz servisi boşta kaldığında uykuya geçebilir; ilk istek soğuk başlatma nedeniyle yavaş olabilir. Backend URL'si aynı cihazdaki uygulamada bir kez girildikten sonra saklanır.
 
 1. GitHub'da yalnızca bu iş için **yeni bir PRIVATE depo** oluştur. Public `mm2vault/Apk-Studio` deposuna kullanıcı projeleri yüklenmez.
 2. Bu depoda `.github/workflows/build-user-project.yml` dosyasını oluştur ve APK Studio'daki [workflow şablonunun](templates/build-user-project.yml) tamamını içine kopyala.
@@ -76,9 +87,9 @@ Cloud Build, APK Studio'nun kendi uygulamasını derlemekten ayrıdır. Kullanı
    - `GITHUB_TOKEN=<token>`
    - `GITHUB_BUILD_REF=main`
    - `APK_STUDIO_BUILD_API_KEY=<uzun-rastgele-gizli-değer>`
-5. APK Studio uygulamasında Derle ekranına backend'in `APK_STUDIO_BUILD_API_KEY` değerini gir ve Cloud APK Oluştur düğmesine bas.
+5. APK Studio uygulamasında Derle ekranına Render backend adresini ve `APK_STUDIO_BUILD_API_KEY` değerini gir, ardından Cloud APK Oluştur düğmesine bas.
 
-APK Studio en fazla 30 MB'lık Gradle ZIP arşivini özel depoda benzersiz bir geçici dala yükler ve workflow'u başlatır. Derleme ekranı GitHub Actions durumunu backend üzerinden takip eder, job durumlarını/günlüklerini gösterir, 7 gün saklanan artifact ZIP'ini sunucu üzerinden indirir ve içindeki APK dosyasını telefona indirmeyi başlatır. GitHub tokeni tarayıcıya gönderilmez. Uygulama veya sayfa derleme bitmeden kapatılırsa APK'yı özel build deposundaki Actions > Artifacts bölümünden elle indirebilirsin. Workflow geçici dalı başarıda veya hatada temizlemeye çalışır; cleanup adımı başarısız olursa dalı özel depodan elle silebilirsin.
+APK Studio en fazla 30 MB'lık Gradle ZIP arşivini özel depoda benzersiz bir geçici dala yükler ve workflow'u başlatır. Derleme ekranı GitHub Actions durumunu backend üzerinden takip eder, job durumlarını ve başarısız derleme günlüklerini gösterir, 7 gün saklanan artifact ZIP'ini sunucu üzerinden indirir ve içindeki APK dosyasını telefona indirmeyi başlatır. GitHub tokeni tarayıcıya gönderilmez. Uygulama veya sayfa derleme bitmeden kapatılırsa APK'yı özel build deposundaki Actions > Artifacts bölümünden elle indirebilirsin. Workflow geçici dalı başarıda veya hatada temizlemeye çalışır; cleanup adımı başarısız olursa dalı özel depodan elle silebilirsin.
 
 Cloud Build yalnızca geçerli Android Gradle projesini derler. HTML/CSS/JS projeleri APK Studio tarafından önce WebView tabanlı Gradle projesine dönüştürülür. Lua/Python kaynakları tek başına otomatik APK üretmez; ilgili Android runtime gerekir. Release APK'nın yüklenebilir olması için kullanıcı projesinin kendi Gradle signingConfig ayarı yapılmış olmalıdır; APK Studio'nun imza anahtarı kullanıcı projesine otomatik eklenmez.
 
