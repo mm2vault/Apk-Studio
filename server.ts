@@ -700,13 +700,13 @@ jobs:
             const logArchive = await JSZip.loadAsync(logBytes);
             const textEntries = Object.values(logArchive.files).filter(entry => !entry.dir && entry.name.toLowerCase().endsWith('.txt'));
             for (const entry of textEntries) {
-              const lines = (await entry.async('string')).split(/\\r?\\n/).filter(Boolean).slice(-60);
+              const lines = (await entry.async('string')).split(/\r?\n/).filter(Boolean).slice(-60);
               for (const [index, line] of lines.entries()) {
                 logs.push({
                   id: `cloud-log-${job.id}-${index}`,
                   timestamp: new Date().toISOString(),
-                  level: /\\b(error|failed|exception)\\b/i.test(line) ? 'error'
-                    : /\\bwarn(ing)?\\b/i.test(line) ? 'warn' : 'info',
+                  level: /\b(error|failed|exception)\b/i.test(line) ? 'error'
+                    : /\bwarn(ing)?\b/i.test(line) ? 'warn' : 'info',
                   message: line.slice(0, 700),
                   step: job.name
                 });
@@ -784,13 +784,13 @@ jobs:
     }
 
     const artifactId = req.params.artifactId || '';
-    if (!/^\\d{1,18}$/.test(artifactId)) {
+    if (!/^\d{1,18}$/.test(artifactId)) {
       return res.status(400).json({ success: false, message: 'Geçersiz APK artifact kimliği.' });
     }
 
     const repository = process.env.GITHUB_BUILD_REPOSITORY || '';
     const token = process.env.GITHUB_TOKEN || '';
-    if (!/^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$/.test(repository) || !token) {
+    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) || !token) {
       return res.status(503).json({ success: false, message: 'Cloud Build sunucu yapılandırması eksik.' });
     }
 
