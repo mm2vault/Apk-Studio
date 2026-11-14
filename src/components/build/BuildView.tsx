@@ -146,7 +146,7 @@ export const BuildView: React.FC<BuildViewProps> = ({ project, setActiveTab }) =
             const value = event.target.value;
             setBackendUrl(value);
             try {
-              const normalized = value.trim().replace(/\\/+$/, '');
+              const normalized = value.trim().replace(/\/+$/, '');
               if (normalized) window.localStorage.setItem('apk-studio-backend-url', normalized);
               else window.localStorage.removeItem('apk-studio-backend-url');
             } catch {
